@@ -60607,7 +60607,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkSummaryTab.jsx",
-      "source_location": "L627",
+      "source_location": "L628",
       "weight": 1.0
     },
     {
@@ -60619,7 +60619,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkSummaryTab.jsx",
-      "source_location": "L633",
+      "source_location": "L634",
       "weight": 1.0
     },
     {
@@ -60631,7 +60631,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkSummaryTab.jsx",
-      "source_location": "L637",
+      "source_location": "L638",
       "weight": 1.0
     },
     {
@@ -60643,7 +60643,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkSummaryTab.jsx",
-      "source_location": "L645",
+      "source_location": "L646",
       "weight": 1.0
     },
     {
@@ -60655,7 +60655,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkSummaryTab.jsx",
-      "source_location": "L650",
+      "source_location": "L651",
       "weight": 1.0
     },
     {
@@ -60667,7 +60667,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "client/src/views/dashboard/Default/work/WorkSummaryTab.jsx",
-      "source_location": "L655",
+      "source_location": "L656",
       "weight": 1.0
     },
     {
@@ -103070,18 +103070,6 @@
       "context": "import",
       "source_file": "client/src/views/dashboard/Default/work/WorkSummaryTab.jsx",
       "source_location": "L40",
-      "weight": 1.0
-    },
-    {
-      "source": "client_src_views_dashboard_default_work_worksummarytab",
-      "target": "client_src_views_dashboard_default_work_workcontracts_workcontracts",
-      "relation": "imports",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "import",
-      "source_file": "client/src/views/dashboard/Default/work/WorkSummaryTab.jsx",
-      "source_location": "L41",
       "weight": 1.0
     },
     {
@@ -199727,5 +199715,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "7ec12403a7d3f733571ea19a05a3d7f5c96b217b"
+  "built_at_commit": "a6375de3e53f16f63d5e8509199ef29cb69298a2"
 }

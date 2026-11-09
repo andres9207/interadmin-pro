@@ -3420,9 +3420,9 @@
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/WorkSummaryTab.jsx": {
-    "mtime": 1793122973.5075557,
-    "seen": 1793127089.243428,
-    "ast_hash": "ec1c966e4c4e0a11bcc9954e420fd85c",
+    "mtime": 1794228568.5064914,
+    "seen": 1794228675.7076306,
+    "ast_hash": "a7efe69f86399c05e37984cb90769a7c",
     "semantic_hash": ""
   },
   "client/src/views/dashboard/Default/work/workDashboard.utils.js": {

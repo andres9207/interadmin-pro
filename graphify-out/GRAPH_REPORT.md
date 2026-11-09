@@ -1,17 +1,17 @@
-# Graph Report - WEBPAC-INTERVE  (2026-10-29)
+# Graph Report - WEBPAC-INTERVE  (2026-11-09)
 
 ## Corpus Check
-- 702 files · ~417,779 words
+- 702 files · ~417,800 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 11 file(s) not represented in the graph (top: (none) 6, .template 1, .css 1)
 
 ## Summary
-- 4478 nodes · 12709 edges · 241 communities (127 shown, 114 thin omitted)
+- 4478 nodes · 12708 edges · 241 communities (127 shown, 114 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 166 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `7ec12403`
+- Built from commit: `a6375de3`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -703,7 +703,7 @@ Cohesion: 0.33
 Nodes (4): baseConfig, config, prismaMock, service
 
 ## Knowledge Gaps
-- **1220 isolated node(s):** `STATUS_TABS`, `CONTRACT_ALERT_OPTIONS`, `CONTRACT_INVOICE_TYPES`, `TERM_UNIT_NAMES`, `CONTRACT_TYPES` (+1215 more)
+- **1220 isolated node(s):** `LEVEL_COLORS`, `num`, `CONTRACT_NOUN`, `INVOICE_NOUN`, `axios` (+1215 more)
   These have ≤1 connection - possible missing edges. (Counts symbols only; 1670 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **114 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -711,12 +711,12 @@ Nodes (4): baseConfig, config, prismaMock, service
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `ADR-0017` connect `permissions.constants.js` to `seed.demo.js`, `constants.js`?**
-  _High betweenness centrality (0.188) - this node is a cross-community bridge._
+  _High betweenness centrality (0.175) - this node is a cross-community bridge._
 - **Why does `ADR-0019` connect `permissions.constants.js` to `constants.js`?**
-  _High betweenness centrality (0.101) - this node is a cross-community bridge._
+  _High betweenness centrality (0.104) - this node is a cross-community bridge._
 - **Why does `@mui/material` connect `@mui/material` to `overrides/index.js`, `ImageList.jsx`, `PoliciesTab.jsx`, `constants.js`, `InvoiceFormPage.jsx`, `ContractDetailPage.jsx`, `WorksPage.jsx`, `MenuList/index.jsx`, `client/package.json`, `themes/index.jsx`, `NotificationSection/index.jsx`, `SimpleBar.jsx`, `showError`, `fMoneyText`, `GeneralDashboard.jsx`, `MainLayout/index.jsx`, `AuthenticationRoutes.jsx`, `StatementReportDialog.jsx`, `formatTime.js`, `App.jsx`, `AuthForgotPassword.jsx`, `EasyCrop.jsx`, `useAuth`, `InputLabel.jsx`, `WorkDetailPage.jsx`, `DebouncedInput.jsx`?**
-  _High betweenness centrality (0.085) - this node is a cross-community bridge._
-- **What connects `STATUS_TABS`, `CONTRACT_ALERT_OPTIONS`, `CONTRACT_INVOICE_TYPES` to the rest of the system?**
+  _High betweenness centrality (0.084) - this node is a cross-community bridge._
+- **What connects `LEVEL_COLORS`, `num`, `CONTRACT_NOUN` to the rest of the system?**
   _1220 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `overrides/index.js` be split into smaller, more focused modules?**
   _Cohesion score 0.0784313725490196 - nodes in this community are weakly interconnected._
