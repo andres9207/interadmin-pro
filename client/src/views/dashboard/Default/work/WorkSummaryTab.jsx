@@ -624,7 +624,8 @@ export default function WorkSummaryTab({ data, workLabel }) {
 
       <DashboardCards items={kpis} />
 
-      {invoices && <WorkCosts invoices={invoices} onDrill={openDrill} />}
+      {/* Sin `executed` (un servidor anterior a la analítica) la sección no se dibuja, en vez de romper el tablero. */}
+      {invoices?.executed && <WorkCosts invoices={invoices} onDrill={openDrill} />}
 
       {(contracts || invoices) && (
         <Grid container spacing={gridSpacing}>
