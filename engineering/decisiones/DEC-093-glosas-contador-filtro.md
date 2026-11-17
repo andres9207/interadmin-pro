@@ -11,7 +11,7 @@ Pedido por el usuario el 2026-10-28. Amplía [DEC-085](DEC-085-glosas.md) (glosa
 
 ## Decisión
 
-- **Contadores:** `getInvoice` trae `openGlossesCount` (glosas abiertas: no liberadas ni eliminadas) y `followUpsCount` (seguimientos no eliminados). Las pestañas los muestran desde que se abre la factura, solo si son mayores que cero; al cargar la pestaña, toman su propia lista.
+- **Contadores:** `getInvoice` trae `glossesCount` (glosas no eliminadas, abiertas o liberadas), `openGlossesCount` (las abiertas: no liberadas ni eliminadas) y `followUpsCount` (seguimientos no eliminados). Las pestañas los muestran desde que se abre la factura, solo si son mayores que cero; al cargar la pestaña, toman su propia lista. La de Glosas cuenta todas y va en amarillo solo si queda alguna abierta (2026-11-17: antes contaba solo las abiertas y, con todas liberadas, no mostraba número).
 - **Filtro «Glosas»** en el listado de facturas de cada menú (`gloss`, `GLOSS_FILTERS`): **con glosas abiertas**, **con glosas** (alguna, abierta o liberada) o **sin glosas**. Las eliminadas no cuentan (`liveGlossesWhere`). Como los demás filtros (DEC-048): cuenta en las pestañas de estado, se suma al alcance por obra y va al reporte del listado (DEC-070).
 
 ## Dónde

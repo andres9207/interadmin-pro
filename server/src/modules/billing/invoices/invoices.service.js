@@ -1455,7 +1455,7 @@ export const getInvoice = async ({ invId, scope }) => {
       _count: {
         select: {
           tbl_invoice_follow_ups: { where: { sta_id: { not: DELETED_STATUS } } },
-          tbl_invoice_glosses: { where: liveGlossesWhere({ open: true }) },
+          tbl_invoice_glosses: { where: liveGlossesWhere() },
         },
       },
       created_by_user: USER_NAME_SELECT,
@@ -1489,6 +1489,10 @@ export const getInvoice = async ({ invId, scope }) => {
     },
   });
   if (!row) throw httpError(404, "No se encontró la factura.");
+  // El contador cuenta todas las glosas vivas; las abiertas lo marcan en amarillo (DEC-093).
+  const openGlossesCount = row._count?.tbl_invoice_glosses
+    ? await prisma.tbl_invoice_glosses.count({ where: { inv_id: row.inv_id, ...liveGlossesWhere({ open: true }) } })
+    : 0;
   const statement = row.inv_statement
     ? await prisma.tbl_statements.findFirst({
         where: { wrk_id: row.wrk_id, stm_number: row.inv_statement, sta_id: { not: DELETED_STATUS } },
@@ -1522,7 +1526,8 @@ export const getInvoice = async ({ invId, scope }) => {
     // Campos que admite una glosa de esta factura (DEC-085), con su importe en ella (DEC-092).
     glossFields: glossFieldsFor(row.inv_type, amounts),
     followUpsCount: row._count?.tbl_invoice_follow_ups ?? 0,
-    openGlossesCount: row._count?.tbl_invoice_glosses ?? 0,
+    glossesCount: row._count?.tbl_invoice_glosses ?? 0,
+    openGlossesCount,
     statementDate: dateOnlyText(statement?.stm_date),
     description: row.inv_description,
     providerName: row.tbl_providers?.prv_name ?? null,

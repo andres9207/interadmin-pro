@@ -472,7 +472,7 @@ export default function InvoiceGlossesTab({ invoice, canManage, onCount }) {
     try {
       const { data } = await invoiceGlossesApi.list(invoice.invId);
       setRows(data);
-      onCount?.(data.filter((row) => row.open).length);
+      onCount?.({ total: data.length, open: data.filter((row) => row.open).length });
     } catch (err) {
       showError(err.response?.data?.message || 'Error al cargar las glosas');
       setRows([]);

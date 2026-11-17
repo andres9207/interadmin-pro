@@ -289,7 +289,7 @@ export default function InvoiceDetailPage() {
   }, [asideMode, tab, canEditData]);
   // Cuántos seguimientos tiene: lo cuenta la pestaña al cargarlos (antes, sin número).
   const [followUpCount, setFollowUpCount] = useState(null);
-  const [openGlosses, setOpenGlosses] = useState(null);
+  const [glossCount, setGlossCount] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -416,8 +416,13 @@ export default function InvoiceDetailPage() {
                         {t.key === 'followUps' && (followUpCount ?? invoice.followUpsCount) > 0 && (
                           <Chip label={followUpCount ?? invoice.followUpsCount} size="small" color="default" />
                         )}
-                        {t.key === 'glosses' && (openGlosses ?? invoice.openGlossesCount) > 0 && (
-                          <Chip label={openGlosses ?? invoice.openGlossesCount} size="small" color="warning" />
+                        {/* Todas las glosas, abiertas y liberadas; en amarillo si queda alguna abierta. */}
+                        {t.key === 'glosses' && (glossCount?.total ?? invoice.glossesCount) > 0 && (
+                          <Chip
+                            label={glossCount?.total ?? invoice.glossesCount}
+                            size="small"
+                            color={(glossCount?.open ?? invoice.openGlossesCount) > 0 ? 'warning' : 'default'}
+                          />
                         )}
                       </Stack>
                     }
@@ -619,7 +624,7 @@ export default function InvoiceDetailPage() {
               <InvoiceGlossesTab
                 invoice={{ invId: invoice.invId, statement: invoice.statement, state: invoice.state, glossFields: invoice.glossFields }}
                 canManage={canDo(perms?.manageGlosses)}
-                onCount={setOpenGlosses}
+                onCount={setGlossCount}
               />
             )}
 
