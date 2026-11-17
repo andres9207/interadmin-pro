@@ -21,7 +21,8 @@ export const loginController = async (req, res, next) => {
       ctx: auditContext(req),
     });
 
-    // Sesión única: abrir esta sesión cierra cualquier otra del usuario.
+    // Varias sesiones por usuario (DEC-102): abre una más, sin cerrar las de
+    // otros dispositivos.
     const { accessToken, refreshToken } = await sessionService.createSession({
       user: sessionUser,
       ...requestContext(req),
@@ -149,11 +150,13 @@ export const updatePasswordController = async (req, res, next) => {
       ctx: auditContext(req),
     });
 
-    // Rota la sesión: sesión nueva para este dispositivo, la anterior (y
-    // cualquier copia de sus tokens) deja de servir.
+    // Rota la sesión: sesión nueva para este dispositivo, y todas las demás
+    // del usuario (otros dispositivos, cualquier copia de sus tokens) dejan
+    // de servir (DEC-102).
     const { accessToken, refreshToken } = await sessionService.createSession({
       user,
       ...requestContext(req),
+      revokeOthers: true,
     });
     sessionService.setSessionCookies(res, { accessToken, refreshToken });
 

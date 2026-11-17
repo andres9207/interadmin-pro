@@ -110,7 +110,7 @@ model tbl_password_resets {
 
 model tbl_sessions {
   ses_id                Int       @id @default(autoincrement())
-  use_id                Int       @unique(map: "uq_sessions_use_id")
+  use_id                Int
   ses_key               String    @unique(map: "uq_sessions_ses_key") @db.Char(36)
   ses_refresh_hash      String    @unique(map: "uq_sessions_refresh_hash") @db.Char(64)
   ses_prev_refresh_hash String?   @db.Char(64)
@@ -122,6 +122,7 @@ model tbl_sessions {
   tbl_users             tbl_users @relation(fields: [use_id], references: [use_id], onUpdate: Restrict, map: "tbl_sessions_users")
 
   @@index([ses_prev_refresh_hash], map: "ix_sessions_prev_refresh_hash")
+  @@index([use_id], map: "ix_sessions_use_id")
 }
 
 model tbl_login_attempts {
@@ -330,7 +331,7 @@ model tbl_users {
   reasons_created                          tbl_reasons[]                          @relation("ReasonCreatedBy")
   reasons_deleted                          tbl_reasons[]                          @relation("ReasonDeletedBy")
   reasons_updated                          tbl_reasons[]                          @relation("ReasonUpdatedBy")
-  tbl_sessions                             tbl_sessions?
+  tbl_sessions                             tbl_sessions[]
   supervision_types_created                tbl_supervision_types[]                @relation("SupervisionTypeCreatedBy")
   supervision_types_deleted                tbl_supervision_types[]                @relation("SupervisionTypeDeletedBy")
   supervision_types_updated                tbl_supervision_types[]                @relation("SupervisionTypeUpdatedBy")

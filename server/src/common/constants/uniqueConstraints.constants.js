@@ -84,7 +84,6 @@ export const INTERNAL_UNIQUE_CONSTRAINTS = Object.freeze([
   "uq_user_permissions_per_use",
   "uq_user_pages_use_pag",
   // Sesiones y recuperación de contraseña
-  "uq_sessions_use_id",
   "uq_sessions_ses_key",
   "uq_sessions_refresh_hash",
   "uq_password_resets_use_id",

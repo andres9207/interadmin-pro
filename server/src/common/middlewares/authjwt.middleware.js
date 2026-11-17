@@ -29,8 +29,8 @@ export const verifyToken = async (req, res, next) => {
 
       try {
         // Además de firma y vencimiento: la sesión (sid) debe seguir viva en
-        // tbl_sessions y el usuario activo. Así un logout, un login en otro
-        // dispositivo (sesión única) o una desactivación cortan el acceso en
+        // tbl_sessions y el usuario activo. Así un logout, un cambio de
+        // contraseña o una desactivación cortan el acceso en
         // la siguiente petición, sin esperar a que el JWT venza.
         const active = await isSessionActive({
           sid: decoded.sid,

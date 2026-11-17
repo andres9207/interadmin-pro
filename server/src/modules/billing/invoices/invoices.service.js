@@ -1262,11 +1262,15 @@ export const contractInvoicesForReport = async ({ ctrId }) => {
  */
 export const statementInvoices = async ({ wrkId, number }) =>
   (
-    await findExportRows(prisma.tbl_invoices, {
-      where: { wrk_id: Number(wrkId), inv_statement: number, sta_id: { not: DELETED_STATUS } },
-      select: { ...LIST_SELECT, inv_voucher_number: true },
-      orderBy: [{ pvt_id: "asc" }, { inv_date: "asc" }, { inv_id: "asc" }],
-    })
+    await findExportRows(
+      prisma.tbl_invoices,
+      {
+        where: { wrk_id: Number(wrkId), inv_statement: number, sta_id: { not: DELETED_STATUS } },
+        select: { ...LIST_SELECT, inv_voucher_number: true },
+        orderBy: [{ pvt_id: "asc" }, { inv_date: "asc" }, { inv_id: "asc" }],
+      },
+      { allowEmpty: true },
+    )
   ).map((row) => ({ ...toListDto(row), voucherNumber: row.inv_voucher_number, amounts: statementAmounts(row) }));
 
 /**

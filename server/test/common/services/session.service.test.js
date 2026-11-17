@@ -8,6 +8,8 @@ const prismaMock = {
   tbl_sessions: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
     upsert: jest.fn(),
     updateMany: jest.fn(),
     deleteMany: jest.fn(),
@@ -38,59 +40,65 @@ const inAWeek = () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 beforeEach(() => {
   jest.clearAllMocks();
   prismaMock.$transaction.mockImplementation((fn) => fn({ ...prismaMock }));
+  prismaMock.tbl_sessions.findMany.mockResolvedValue([]);
+  prismaMock.tbl_sessions.deleteMany.mockResolvedValue({ count: 1 });
 });
 
 const auditRows = () => prismaMock.tbl_audit_log.createMany.mock.calls.flatMap((c) => c[0].data);
 
-describe("createSession — sesión única", () => {
+describe("createSession — varias sesiones por usuario (DEC-102)", () => {
   it("guarda solo el hash del refresh token y firma el access token con sid", async () => {
-    prismaMock.tbl_sessions.findUnique.mockResolvedValue(null);
-
     const { accessToken, refreshToken, sessionKey } = await sessionService.createSession({ user, ip: "1.1.1.1" });
 
-    const { create } = prismaMock.tbl_sessions.upsert.mock.calls[0][0];
-    expect(create.ses_refresh_hash).toBe(sha256(refreshToken));
-    expect(JSON.stringify(create)).not.toContain(refreshToken);
+    const { data } = prismaMock.tbl_sessions.create.mock.calls[0][0];
+    expect(data.use_id).toBe(1);
+    expect(data.ses_refresh_hash).toBe(sha256(refreshToken));
+    expect(JSON.stringify(data)).not.toContain(refreshToken);
     expect(jwt.verify(accessToken, process.env.JWT_SECRET)).toMatchObject({ useId: 1, sid: sessionKey });
   });
 
-  it("reemplaza la sesión anterior (upsert por use_id) y desconecta sus sockets", async () => {
-    prismaMock.tbl_sessions.findUnique.mockResolvedValue({ ses_key: "sesion-vieja" });
+  it("inserta una sesión nueva sin cerrar las demás: solo borra las vencidas del usuario", async () => {
+    await sessionService.createSession({ user });
 
-    const { sessionKey } = await sessionService.createSession({ user });
-
-    const call = prismaMock.tbl_sessions.upsert.mock.calls[0][0];
-    expect(call.where).toEqual({ use_id: 1 });
-    expect(call.update.ses_key).toBe(sessionKey);
-    expect(sessionKey).not.toBe("sesion-vieja");
-    expect(mockIn).toHaveBeenCalledWith("session:sesion-vieja");
-    expect(mockDisconnectSockets).toHaveBeenCalledWith(true);
+    expect(prismaMock.tbl_sessions.create).toHaveBeenCalledTimes(1);
+    expect(prismaMock.tbl_sessions.upsert).not.toHaveBeenCalled();
+    const { where } = prismaMock.tbl_sessions.deleteMany.mock.calls[0][0];
+    expect(where.use_id).toBe(1);
+    expect(where.ses_expires_at.lte).toBeInstanceOf(Date);
+    expect(mockDisconnectSockets).not.toHaveBeenCalled();
   });
 
-  it("con auditOperation registra el LOGIN en la bitácora, y si reemplazó otra sesión lo deja constar", async () => {
-    prismaMock.tbl_sessions.findUnique.mockResolvedValue({ ses_key: "sesion-vieja" });
+  it("con revokeOthers cierra todas las demás sesiones del usuario y desconecta sus sockets", async () => {
+    prismaMock.tbl_sessions.findMany.mockResolvedValue([{ ses_key: "otra-1" }, { ses_key: "otra-2" }]);
 
+    const { sessionKey } = await sessionService.createSession({ user, revokeOthers: true });
+
+    expect(prismaMock.tbl_sessions.deleteMany).toHaveBeenCalledWith({ where: { use_id: 1 } });
+    expect(prismaMock.tbl_sessions.create.mock.calls[0][0].data.ses_key).toBe(sessionKey);
+    expect(mockIn).toHaveBeenCalledWith("session:otra-1");
+    expect(mockIn).toHaveBeenCalledWith("session:otra-2");
+  });
+
+  it("con auditOperation registra el LOGIN en la bitácora", async () => {
     await sessionService.createSession({ user, ip: "1.1.1.1", auditOperation: "LOGIN" });
 
-    const [row] = auditRows();
-    expect(row).toMatchObject({
-      aud_operation: "LOGIN",
-      aud_entity: "USUARIO",
-      aud_record_id: 1,
-      use_id: 1,
-      aud_ip: "1.1.1.1",
-      aud_field: "sesion_anterior",
-    });
+    expect(auditRows()).toEqual([
+      expect.objectContaining({
+        aud_operation: "LOGIN",
+        aud_entity: "USUARIO",
+        aud_record_id: 1,
+        use_id: 1,
+        aud_ip: "1.1.1.1",
+      }),
+    ]);
   });
 
   it("sin auditOperation no escribe en la bitácora", async () => {
-    prismaMock.tbl_sessions.findUnique.mockResolvedValue(null);
     await sessionService.createSession({ user });
     expect(prismaMock.tbl_audit_log.createMany).not.toHaveBeenCalled();
   });
 
   it("el access token dura 15 minutos por defecto", async () => {
-    prismaMock.tbl_sessions.findUnique.mockResolvedValue(null);
     const { accessToken } = await sessionService.createSession({ user });
     const { iat, exp } = jwt.decode(accessToken);
     expect(exp - iat).toBe(15 * 60);
@@ -122,18 +130,31 @@ describe("refreshSession — rotación", () => {
     expect(jwt.verify(accessToken, process.env.JWT_SECRET)).toMatchObject({ useId: 1, sid: "sesion-1" });
   });
 
-  it("revoca y rechaza si la sesión venció o el usuario ya no está activo", async () => {
-    prismaMock.tbl_sessions.findUnique
-      .mockResolvedValueOnce({
-        ses_id: 3,
-        ses_key: "sesion-1",
-        ses_expires_at: inAWeek(),
-        tbl_users: { ...dbUser, sta_id: 2 },
-      })
-      .mockResolvedValueOnce({ ses_key: "sesion-1" });
+  it("usuario no activo: revoca todas sus sesiones y rechaza", async () => {
+    prismaMock.tbl_sessions.findUnique.mockResolvedValue({
+      ses_id: 3,
+      ses_key: "sesion-1",
+      ses_expires_at: inAWeek(),
+      tbl_users: { ...dbUser, sta_id: 2 },
+    });
+    prismaMock.tbl_sessions.findMany.mockResolvedValue([{ ses_key: "sesion-1" }, { ses_key: "sesion-2" }]);
 
     await expect(sessionService.refreshSession({ refreshToken: "x" })).rejects.toMatchObject({ statusCode: 401 });
     expect(prismaMock.tbl_sessions.deleteMany).toHaveBeenCalledWith({ where: { use_id: 1 } });
+    expect(mockIn).toHaveBeenCalledWith("session:sesion-2");
+  });
+
+  it("sesión vencida: revoca solo esa sesión y rechaza", async () => {
+    prismaMock.tbl_sessions.findUnique.mockResolvedValue({
+      ses_id: 3,
+      ses_key: "sesion-1",
+      ses_expires_at: new Date(Date.now() - 1000),
+      tbl_users: dbUser,
+    });
+
+    await expect(sessionService.refreshSession({ refreshToken: "x" })).rejects.toMatchObject({ statusCode: 401 });
+    expect(prismaMock.tbl_sessions.deleteMany).toHaveBeenCalledWith({ where: { ses_id: 3 } });
+    expect(prismaMock.tbl_sessions.deleteMany).not.toHaveBeenCalledWith({ where: { use_id: 1 } });
   });
 
   it("token ya rotado dentro de la ventana de gracia: access token nuevo sin rotar (pestañas concurrentes)", async () => {
@@ -154,10 +175,8 @@ describe("refreshSession — rotación", () => {
     expect(prismaMock.tbl_sessions.deleteMany).not.toHaveBeenCalled();
   });
 
-  it("token ya rotado fuera de la ventana: se trata como robo y revoca la sesión", async () => {
-    prismaMock.tbl_sessions.findUnique
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ ses_key: "sesion-1" });
+  it("token ya rotado fuera de la ventana: se trata como robo y revoca solo esa sesión", async () => {
+    prismaMock.tbl_sessions.findUnique.mockResolvedValue(null);
     prismaMock.tbl_sessions.findFirst.mockResolvedValue({
       ses_id: 3,
       ses_key: "sesion-1",
@@ -167,7 +186,9 @@ describe("refreshSession — rotación", () => {
     });
 
     await expect(sessionService.refreshSession({ refreshToken: "robado" })).rejects.toMatchObject({ statusCode: 401 });
-    expect(prismaMock.tbl_sessions.deleteMany).toHaveBeenCalledWith({ where: { use_id: 1 } });
+    expect(prismaMock.tbl_sessions.deleteMany).toHaveBeenCalledWith({ where: { ses_id: 3 } });
+    expect(prismaMock.tbl_sessions.deleteMany).not.toHaveBeenCalledWith({ where: { use_id: 1 } });
+    expect(mockIn).toHaveBeenCalledWith("session:sesion-1");
     expect(auditRows()).toEqual([
       expect.objectContaining({ aud_operation: "SESION_REVOCADA", aud_record_id: 1, aud_field: "motivo" }),
     ]);
@@ -199,16 +220,34 @@ describe("parseDuration — formato de JWT_REFRESH_EXPIRES_IN", () => {
 });
 
 describe("revocación", () => {
-  it("revokeSession borra la sesión y desconecta sus sockets", async () => {
-    prismaMock.tbl_sessions.findUnique.mockResolvedValue({ ses_key: "sesion-1" });
+  it("revokeSession borra todas las sesiones del usuario y desconecta sus sockets", async () => {
+    prismaMock.tbl_sessions.findMany.mockResolvedValue([{ ses_key: "sesion-1" }, { ses_key: "sesion-2" }]);
 
     await sessionService.revokeSession({ useId: 1 });
 
     expect(prismaMock.tbl_sessions.deleteMany).toHaveBeenCalledWith({ where: { use_id: 1 } });
     expect(mockIn).toHaveBeenCalledWith("session:sesion-1");
+    expect(mockIn).toHaveBeenCalledWith("session:sesion-2");
   });
 
-  it("revokeSessionByKey no cierra la sesión vigente con un token de una sesión anterior", async () => {
+  it("revokeSession sin sesiones no borra ni audita nada", async () => {
+    await sessionService.revokeSession({ useId: 1, audit: { operation: "SESION_REVOCADA", ctx: {} } });
+
+    expect(prismaMock.tbl_sessions.deleteMany).not.toHaveBeenCalled();
+    expect(prismaMock.tbl_audit_log.createMany).not.toHaveBeenCalled();
+  });
+
+  it("revokeSessionByKey cierra solo la sesión de ese token", async () => {
+    prismaMock.tbl_sessions.findFirst.mockResolvedValue({ ses_id: 7, use_id: 1, ses_key: "sesion-1" });
+
+    await sessionService.revokeSessionByKey({ useId: 1, sessionKey: "sesion-1" });
+
+    expect(prismaMock.tbl_sessions.deleteMany).toHaveBeenCalledWith({ where: { ses_id: 7 } });
+    expect(prismaMock.tbl_sessions.deleteMany).not.toHaveBeenCalledWith({ where: { use_id: 1 } });
+    expect(mockIn).toHaveBeenCalledWith("session:sesion-1");
+  });
+
+  it("revokeSessionByKey con un token de una sesión que ya no existe no cierra nada", async () => {
     prismaMock.tbl_sessions.findFirst.mockResolvedValue(null);
 
     await sessionService.revokeSessionByKey({ useId: 1, sessionKey: "sesion-vieja" });
@@ -216,10 +255,8 @@ describe("revocación", () => {
     expect(prismaMock.tbl_sessions.deleteMany).not.toHaveBeenCalled();
   });
 
-  it("revokeSessionByRefreshToken busca la sesión por el hash del token", async () => {
-    prismaMock.tbl_sessions.findUnique
-      .mockResolvedValueOnce({ use_id: 1 })
-      .mockResolvedValueOnce({ ses_key: "sesion-1" });
+  it("revokeSessionByRefreshToken busca la sesión por el hash del token y cierra solo esa", async () => {
+    prismaMock.tbl_sessions.findUnique.mockResolvedValue({ ses_id: 7, use_id: 1, ses_key: "sesion-1" });
 
     await sessionService.revokeSessionByRefreshToken({
       refreshToken: "r1",
@@ -227,7 +264,7 @@ describe("revocación", () => {
     });
 
     expect(prismaMock.tbl_sessions.findUnique.mock.calls[0][0].where).toEqual({ ses_refresh_hash: sha256("r1") });
-    expect(prismaMock.tbl_sessions.deleteMany).toHaveBeenCalledWith({ where: { use_id: 1 } });
+    expect(prismaMock.tbl_sessions.deleteMany).toHaveBeenCalledWith({ where: { ses_id: 7 } });
     // El actor del logout es el dueño de la sesión, no un valor del cliente.
     expect(auditRows()).toEqual([
       expect.objectContaining({ aud_operation: "LOGOUT", use_id: 1, aud_record_id: 1, aud_ip: "1.1.1.1" }),

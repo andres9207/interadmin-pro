@@ -93,7 +93,9 @@ export default function SearchSelect({
       inputValue={inputValue}
       onInputChange={(_, text, reason) => {
         setInputValue(text);
-        if (remote && reason !== 'reset') onSearch(reason === 'clear' ? '' : text);
+        // Solo lo escrito busca. Al elegir (MUI 7 avisa 'selectOption', no 'reset'), limpiar o salir, el texto
+        // es la etiqueta de la opción y no un filtro: la búsqueda vuelve a vacía y la lista queda completa.
+        if (remote) onSearch(reason === 'input' ? text : '');
       }}
       noOptionsText={searching ? `Sin resultados para «${inputValue}»` : 'Sin opciones'}
       loadingText="Cargando…"

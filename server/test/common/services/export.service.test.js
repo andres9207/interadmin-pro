@@ -21,6 +21,17 @@ describe("reportes de listados (DEC-070)", () => {
     expect(model.findMany).not.toHaveBeenCalled();
   });
 
+  it("sin filas responde 422 sin leerlas: una tabla vacía no se exporta", async () => {
+    const model = { count: jest.fn(async () => 0), findMany: jest.fn() };
+    await expect(findExportRows(model, { where: { a: 1 }, select: {}, orderBy: {} })).rejects.toMatchObject({ statusCode: 422 });
+    expect(model.findMany).not.toHaveBeenCalled();
+  });
+
+  it("con allowEmpty, sin filas devuelve la lista vacía (el reporte de un extracto)", async () => {
+    const model = { count: jest.fn(async () => 0), findMany: jest.fn(async () => []) };
+    await expect(findExportRows(model, { where: { a: 1 }, select: {}, orderBy: {} }, { allowEmpty: true })).resolves.toEqual([]);
+  });
+
   it("hasta el tope lee todas las filas con el mismo where y orden, sin paginar", async () => {
     const model = { count: jest.fn(async () => EXPORT_MAX_ROWS), findMany: jest.fn(async () => []) };
     await findExportRows(model, { where: { a: 1 }, select: { x: true }, orderBy: { y: "asc" } });

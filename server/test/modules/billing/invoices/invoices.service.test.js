@@ -966,6 +966,8 @@ describe("listado", () => {
     const filters = { pvtId: 3, state: "APPROVED", prvId: 77, statement: "marzo", sortField: "date", sortOrder: -1, scope: OWN };
     await service.paginationInvoices({ ...filters, rows: 10, first: 0 });
     const listed = prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0];
+    // Una tabla vacía no se exporta (422): el reporte cuenta al menos una fila.
+    prismaMock.tbl_invoices.count.mockResolvedValueOnce(1);
     await expect(service.exportInvoices({ ...filters, format: "pdf" })).resolves.toMatchObject({ extension: "pdf" });
     const exported = prismaMock.tbl_invoices.findMany.mock.calls.at(-1)[0];
     expect(exported.where).toEqual(listed.where);

@@ -64,7 +64,7 @@ Implementado en `common/services/session.service.js` sobre `tbl_sessions` (`data
 | --- | --- |
 | Access token | JWT firmado con `JWT_SECRET`, vida `JWT_EXPIRES_IN` (15 min por defecto). Claims: `useId`, `name`, `email`, `proId`, `sid` |
 | Refresh token | 32 bytes aleatorios (`crypto.randomBytes`), vida `JWT_REFRESH_EXPIRES_IN` (`7d` por defecto, deslizante). En BD solo su SHA-256 |
-| Sesión única | `UNIQUE(use_id)` en `tbl_sessions`; login = upsert con un `ses_key` nuevo |
+| Varias sesiones por usuario | Cada login inserta una fila en `tbl_sessions` con su `ses_key`; sin `UNIQUE(use_id)` desde la migración 0130 (DEC-102) |
 | Renovación | `POST /api/auth/refresh`: rota el refresh token (el anterior deja de servir) y emite un access token nuevo con el mismo `sid` |
 | Pestañas concurrentes | Un refresh token recién rotado se acepta 30 s más, y solo emite un access token (no rota de nuevo) |
 | Reutilización | Un refresh token rotado presentado fuera de esa ventana se trata como robo: se revoca la sesión |
@@ -124,7 +124,7 @@ Toda operación sobre la propia cuenta toma el sujeto de `req.user`: `get_basic_
 
 2. **La sesión se renueva con un refresh token opaco, rotado en cada uso y guardado solo como hash.** La reutilización de un refresh token ya rotado revoca la sesión.
 
-3. **Un usuario tiene como máximo una sesión viva.** Un login nuevo cierra la anterior.
+3. **Un usuario puede tener varias sesiones vivas** (DEC-102, 2026-11-17; antes, una sola). Un login nuevo no cierra las demás; el logout y un refresh token reutilizado cierran solo la suya, y el cambio o la restauración de la contraseña, la desactivación y la eliminación del usuario cierran todas.
 
 4. **Los tokens se transportan exclusivamente en cookies `httpOnly`, `secure` y `sameSite: Strict`.** El frontend no puede leerlos; el header `Authorization` queda solo para clientes no navegador.
 
@@ -146,7 +146,7 @@ Toda operación sobre la propia cuenta toma el sujeto de `req.user`: `get_basic_
 
 - **JWT corto + sesión en BD** conserva la verificación barata de la firma y agrega revocación inmediata sin infraestructura nueva (no hay Redis ni almacén de sesiones en el proyecto). La consulta por petición ya existía para revalidar el estado del usuario; ahora es la misma consulta, sobre `tbl_sessions`.
 - **Refresh token opaco y rotado**: un access token robado sirve como mucho 15 minutos. Un refresh token robado se detecta en cuanto su dueño legítimo o el atacante lo reutilizan. Guardarlo como SHA-256 es suficiente porque tiene 256 bits de entropía.
-- **Sesión única** (decisión del área usuaria): acota la exposición a un solo dispositivo y convierte cualquier login no autorizado en un cierre visible de la sesión legítima.
+- **Varias sesiones por usuario** (DEC-102, a pedido del usuario; reemplaza la sesión única): trabajar en varios dispositivos sin que un login interrumpa a los demás. Se pierde que un login no autorizado se note como cierre de la sesión legítima.
 - **Cookie `httpOnly`** es la única defensa efectiva contra el robo de token por XSS.
 - **Sujeto desde el token** elimina de raíz toda una familia de vulnerabilidades (IDOR y escalamiento horizontal).
 - **HMAC en lugar de hash simple para el código**: 900.000 combinaciones se invierten al instante con SHA-256; el HMAC exige además la clave del servidor, que no vive en la BD.
@@ -181,7 +181,7 @@ Conservar JWT + revalidación en BD y cerrar las brechas: sesión en BD con refr
 
 ```mermaid
 erDiagram
-    tbl_users ||--o| tbl_sessions : "sesión única"
+    tbl_users ||--o{ tbl_sessions : "varias sesiones"
     tbl_users ||--o| tbl_password_resets : "código vigente"
     tbl_users ||--o| tbl_login_attempts : "fallos de login"
     tbl_users }o--|| tbl_profiles : "pertenece a"
@@ -239,7 +239,7 @@ validate_code_password / restore_password (públicos)
 1. Un usuario puede autenticarse con su correo o con su nombre de usuario.
 2. Solo los usuarios con `sta_id = 1` (activo) pueden autenticarse, renovar sesión o recuperar su contraseña.
 3. El access token caduca a los 15 minutos; la sesión, a los 7 días sin uso (cada renovación la extiende).
-4. Un usuario tiene como máximo una sesión viva: iniciar sesión cierra la anterior.
+4. Un usuario puede tener varias sesiones vivas; cambiar o restaurar la contraseña, desactivarlo o eliminarlo las cierra todas (DEC-102).
 5. Desactivar, eliminar o cambiarle la contraseña a un usuario cierra su sesión de inmediato.
 6. `sta_id = 3` es el estado de eliminación lógica en todo el sistema; los usuarios eliminados quedan excluidos de listados y de autenticación.
 7. La eliminación de usuarios y perfiles es lógica, nunca física.
@@ -258,7 +258,7 @@ validate_code_password / restore_password (públicos)
 | Consultas parametrizadas (Prisma) | Implementado |
 | Sesión en BD con revocación inmediata | Implementado |
 | Access token corto + refresh token rotado con detección de reutilización | Implementado |
-| Sesión única por usuario | Implementado |
+| Varias sesiones por usuario (antes, sesión única) | Implementado (DEC-102) |
 | Cookies `httpOnly` / `secure` / `sameSite: Strict` | Implementado |
 | Secretos solo en variables de entorno | Implementado |
 | Respuesta uniforme en login y recuperación (contenido y tiempo) | Implementado |
@@ -335,7 +335,7 @@ Siguen existiendo rastros operativos que **no son auditoría** y se sobrescriben
 | Vigencia del código | No | Sí | — | Seguridad |
 | Intentos del código | No | Sí (condicionado, atómico) | `par_attempts` | Seguridad |
 | Un código vigente por usuario | — | Upsert | **Sí — `UNIQUE(use_id)`** | Integridad |
-| Una sesión por usuario | — | Upsert | **Sí — `UNIQUE(use_id)`** | Seguridad |
+| Varias sesiones por usuario (DEC-102) | — | Insert por login | No (se quitó `UNIQUE(use_id)`, migración 0130) | Seguridad |
 | Contraseña actual al cambiarla | Sí | Sí | No aplica | Seguridad |
 | Esquema de entrada del resto de endpoints | Parcial | Sí (`*.validation.js`) | — | Seguridad + Integridad |
 
@@ -365,7 +365,7 @@ Se usan `prisma.$transaction(async (tx) => {...})` (interactiva, con rollback si
 
 - Un token robado sirve como mucho 15 minutos, y un refresh token robado se detecta al reutilizarse.
 - El logout, la desactivación y los cambios de contraseña cortan el acceso en la siguiente petición, también en tiempo real (sockets).
-- La sesión única hace visible cualquier login no autorizado: la sesión legítima se cierra.
+- Cambiar la contraseña cierra todas las sesiones del usuario salvo la del dispositivo que la cambió.
 - Ni el login ni la recuperación revelan qué cuentas existen.
 - El código de recuperación ya no es forzable por fuerza bruta ni legible desde la BD.
 - El acceso a datos se centraliza en un único cliente Prisma: las consultas quedan parametrizadas por construcción y los `orderBy`/`where` que dependen del cliente pasan por mapas fijos.
@@ -374,7 +374,7 @@ Se usan `prisma.$transaction(async (tx) => {...})` (interactiva, con rollback si
 ### Negativas
 
 - Cada petición autenticada hace una consulta a `tbl_sessions` (antes ya consultaba `tbl_users`: el costo no aumenta).
-- La sesión única impide usar la aplicación en dos dispositivos a la vez. Es una decisión explícita del área usuaria.
+- Con varias sesiones (DEC-102), un login no autorizado ya no cierra la sesión legítima, así que no se nota. Queda mitigado por el bloqueo de login y, a futuro, MFA.
 - Todos los usuarios deben volver a iniciar sesión una vez desplegado el cambio: los JWT emitidos antes no tienen `sid`.
 - El bloqueo por cuenta puede usarse para bloquear a un usuario legítimo si se conoce su correo o usuario. Lo mitigan el rate limit por IP y la restauración de contraseña, que levanta el bloqueo.
 - Sin MFA, una contraseña filtrada sigue dando acceso completo hasta que se detecta.
@@ -383,7 +383,7 @@ Se usan `prisma.$transaction(async (tx) => {...})` (interactiva, con rollback si
 
 | Riesgo | Severidad | Estado |
 | --- | --- | --- |
-| Compromiso de cuenta por contraseña filtrada | **Alto** | Mitigado parcialmente (bloqueo, sesión única visible). Se cierra con MFA |
+| Compromiso de cuenta por contraseña filtrada | **Alto** | Mitigado parcialmente (bloqueo de login). Con varias sesiones (DEC-102), un login ajeno ya no cierra la sesión legítima. Se cierra con MFA |
 | Actividad maliciosa sin rastro auditable | **Medio** | Cerrado — eventos en la bitácora ([ADR-0013](0013-auditoria-trazabilidad.md)). Falta una vista para consultarlos (B16 de ADR-0013) |
 | Denegación de servicio a una cuenta por bloqueo | **Bajo** | Aceptado: rate limit por IP + restauración de contraseña |
 | Exposición de `JWT_SECRET` | **Crítico si ocurre** | Controlado: solo en variables de entorno. Rotarlo invalida todas las sesiones y los códigos pendientes |
@@ -433,7 +433,7 @@ Se usan `prisma.$transaction(async (tx) => {...})` (interactiva, con rollback si
 | Rate limiting | Activo, más estricto en `/auth` | ✅ |
 | Helmet | Activo | ✅ |
 | Logout | Revoca la sesión en el servidor | ✅ |
-| Refresh token / sesión concurrente | Rotado, con detección de reutilización; sesión única | ✅ |
+| Refresh token / sesión concurrente | Rotado, con detección de reutilización; varias sesiones por usuario (DEC-102) | ✅ |
 | Socket.IO | Handshake autenticado por JWT + sesión | ✅ |
 | Registro / OTP | Retirado; alta solo administrativa | ✅ |
 | Validación de esquema | Todos los módulos | ✅ |
@@ -459,7 +459,7 @@ Brechas encontradas en la versión inicial de este ADR y su resolución:
 | B11 | Socket.IO admitía `userId` arbitrario | Alta | ✅ Cerrada | Handshake autenticado con JWT + sesión |
 | B12 | Sin `UNIQUE` en `use_user` / `use_email` | Media | ✅ Cerrada | Índices `UNIQUE` en el esquema |
 | B13 | Dos verificaciones de token con criterios distintos | Media | ✅ Cerrada | Un único `verifyToken` |
-| B14 | Sin refresh token, sin logout de servidor, sin control de sesión concurrente | Media | ✅ Cerrada | `tbl_sessions`: refresh rotado, logout que revoca, sesión única |
+| B14 | Sin refresh token, sin logout de servidor, sin control de sesión concurrente | Media | ✅ Cerrada | `tbl_sessions`: refresh rotado, logout que revoca; sesión única hasta DEC-102 |
 | B15 | Sin auditoría de eventos de seguridad | Media | ✅ Cerrada | Bitácora `tbl_audit_log` ([ADR-0013](0013-auditoria-trazabilidad.md)) |
 | B16 | Código muerto de recuperación sobre `tbl_recuperar_cuenta` | Baja | ✅ Cerrada | `common/mails/auth.mails.js` eliminado |
 | B17 | Sin validación de esquema | Media | ✅ Cerrada | `*.validation.js` en todos los módulos |

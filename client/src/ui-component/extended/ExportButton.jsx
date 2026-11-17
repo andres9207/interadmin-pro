@@ -8,6 +8,7 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import ListSubheader from '@mui/material/ListSubheader';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import Tooltip from '@mui/material/Tooltip';
 import { IconChevronDown, IconDownload, IconFileSpreadsheet, IconFileTypePdf } from '@tabler/icons-react';
 
 import { showError } from 'services/ToastService';
@@ -61,7 +62,7 @@ export const downloadExport = async (request, fileName, format) => {
   }
 };
 
-export default function ExportButton({ request, fileName, reports }) {
+export default function ExportButton({ request, fileName, reports, empty = false }) {
   const [anchor, setAnchor] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -74,17 +75,22 @@ export default function ExportButton({ request, fileName, reports }) {
 
   return (
     <>
-      <Button
-        variant="outlined"
-        size="small"
-        startIcon={busy ? <CircularProgress size={14} /> : <IconDownload size={16} />}
-        endIcon={<IconChevronDown size={14} />}
-        onClick={(event) => setAnchor(event.currentTarget)}
-        disabled={busy}
-        aria-haspopup="menu"
-      >
-        {busy ? 'Generando…' : 'Exportar'}
-      </Button>
+      {/* El span deja ver el tooltip con el botón deshabilitado. */}
+      <Tooltip title={empty ? 'No hay registros para exportar' : ''}>
+        <span>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={busy ? <CircularProgress size={14} /> : <IconDownload size={16} />}
+            endIcon={<IconChevronDown size={14} />}
+            onClick={(event) => setAnchor(event.currentTarget)}
+            disabled={busy || empty}
+            aria-haspopup="menu"
+          >
+            {busy ? 'Generando…' : 'Exportar'}
+          </Button>
+        </span>
+      </Tooltip>
       <Menu
         anchorEl={anchor}
         open={Boolean(anchor)}
@@ -125,5 +131,7 @@ ExportButton.propTypes = {
   /** Nombre base del archivo, sin fecha ni extensión. */
   fileName: PropTypes.string.isRequired,
   /** Reportes que ofrece el menú: `{ value, label, fileName }`. */
-  reports: PropTypes.arrayOf(PropTypes.shape({ value: PropTypes.string, label: PropTypes.string, fileName: PropTypes.string }))
+  reports: PropTypes.arrayOf(PropTypes.shape({ value: PropTypes.string, label: PropTypes.string, fileName: PropTypes.string })),
+  /** La tabla no tiene filas: el botón queda deshabilitado (una tabla vacía no se exporta). */
+  empty: PropTypes.bool
 };

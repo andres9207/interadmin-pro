@@ -411,6 +411,7 @@ export default function MasterPage({
                 request={(format, report) => exportOptions.request(queryParams, format, report)}
                 fileName={exportOptions.fileName}
                 reports={exportOptions.reports}
+                empty={loading || total === 0}
               />
             )}
             {renderCard && (

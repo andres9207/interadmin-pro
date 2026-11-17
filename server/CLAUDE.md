@@ -82,7 +82,7 @@ Cobertura actual (24 suites, 200 tests):
 - `security/users/users.service.js` y `security/profiles/profiles.service.js`: columnas de eliminación, reactivación y bitácora (incluidas las páginas y permisos que se borran al eliminar un perfil).
 - `auth.service.js`: bloqueo de login, código de recuperación con hash e intentos.
 - `auth.controller.js`: regresión del fix de IDOR (el sujeto sale de `req.user`, nunca de `req.query`/`req.body`), además de login, refresh y logout por cookies.
-- `session.service.js`: sesión única, rotación, ventana de gracia y detección de reutilización.
+- `session.service.js`: varias sesiones por usuario (DEC-102), rotación, ventana de gracia y detección de reutilización.
 - `resetCode.utils.js`.
 - `validate.middleware.js`.
 - `authjwt.middleware.js`.
@@ -156,14 +156,15 @@ Todos los routers de las funcionalidades se montan centralmente en `server/src/m
 
 `app.js` conecta el middleware global en este orden: `helmet` → `httpLogger` → CORS (allowlist explícita, credentials habilitado) → parsing de body JSON/urlencoded (límite de 50mb) → cookie-parser → compression → `cleanRequestData` → `express-fileupload` → estáticos de `dist/` (build de la SPA) → rutas `/api` → fallback de la SPA (`app.get('*', ...)`) → `errorMiddleware` (debe quedar al final). `server.js` crea el servidor HTTP, inicializa Socket.IO (`socket.js`) y prueba la conexión a la BD al arrancar.
 
-## Sesiones (access token + refresh token, sesión única)
+## Sesiones (access token + refresh token, varias por usuario)
 
 `common/services/session.service.js`, tabla `tbl_sessions` (`database/migrations/0007_create_sessions.sql`). Ver ADR-0001 y engineering/anti-patterns/SECURITY.md.
 
-- **Login** (`loginController`): `auth.service.login` valida credenciales y devuelve `sessionUser`; el controller llama a `createSession`, que hace upsert por `use_id` (**un usuario = una sesión**: un login nuevo reemplaza la anterior y desconecta sus sockets) y fija dos cookies httpOnly: `token` (JWT de 15m con `sid`) y `refresh_token` (opaco, 7 días; en BD solo su SHA-256).
+- **Login** (`loginController`): `auth.service.login` valida credenciales y devuelve `sessionUser`; el controller llama a `createSession`, que inserta una sesión nueva (**varias sesiones por usuario**, [DEC-102](../engineering/decisiones/DEC-102-varias-sesiones-por-usuario.md): un login no cierra las de otros dispositivos; de paso borra las vencidas del usuario) y fija dos cookies httpOnly: `token` (JWT de 15m con `sid`) y `refresh_token` (opaco, 7 días; en BD solo su SHA-256).
 - **Cada petición** (`verifyToken`) y **cada handshake de Socket.IO** exigen, además de la firma, que la sesión `sid` siga viva en `tbl_sessions` y el usuario activo (`isSessionActive`). Un JWT sin `sid` se rechaza.
 - **`POST /auth/refresh`** rota el refresh token y emite un access token nuevo. El cliente lo llama solo ante un 401 (`httpCliente.js`) o un handshake rechazado (`SocketProvider.jsx`).
-- **Revocar** (`revokeSession`) borra la fila y desconecta la sala `session:<sid>`. Se usa en logout, al restaurar la contraseña y cuando un administrador desactiva, elimina o cambia la contraseña de un usuario. Cambiar la propia contraseña abre una sesión nueva (`createSession`). Cualquier flujo nuevo que invalide credenciales debe revocar la sesión.
+- **Revocar todas** (`revokeSession`) borra todas las sesiones del usuario y desconecta sus salas `session:<sid>`. Se usa al restaurar la contraseña y cuando un administrador desactiva, elimina o cambia la contraseña de un usuario. Cambiar la propia contraseña abre una sesión nueva y cierra las demás (`createSession({ revokeOthers: true })`). Cualquier flujo nuevo que invalide credenciales debe revocarlas todas.
+- **Revocar una** (`revokeSessionByKey`, `revokeSessionByRefreshToken`): el logout cierra solo la sesión de ese dispositivo. Un refresh token reutilizado fuera de la ventana de gracia y una sesión vencida al renovar también cierran solo la suya.
 - Si cambian `name`/`email` del usuario, hay que reemitir el access token con la misma `sid` (ver `updateAccountController`). `verifyToken` exige que el correo del token coincida con el de la BD.
 - **Bloqueo de login por cuenta**: `tbl_login_attempts` (`0009_create_login_attempts.sql`). Cada 5 fallos consecutivos, bloqueo progresivo de 15m → 30m → … con tope de 24h. La lógica vive en `auth.service.js`.
 

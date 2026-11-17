@@ -17,9 +17,11 @@ import { ACTIVE_STATUS } from "../constants/status.constants.js";
  *   `refresh_token`, válido durante JWT_REFRESH_EXPIRES_IN ("7d" por defecto).
  *   En BD solo se guarda su SHA-256 (es de alta entropía, no necesita
  *   bcrypt/HMAC como el código de 6 dígitos). Se rota en cada uso.
- * - Sesión única por usuario: UNIQUE(use_id). Un login nuevo reemplaza la
- *   fila con un ses_key nuevo, así que la sesión anterior (otro dispositivo,
- *   otra pestaña, un token robado) queda fuera de inmediato.
+ * - Varias sesiones por usuario (DEC-102): cada login inserta una fila con
+ *   su propio ses_key, y las sesiones de otros dispositivos siguen vivas. El
+ *   logout y la reutilización de un refresh token cierran solo su sesión; el
+ *   cambio o la restauración de la contraseña, la desactivación y la
+ *   eliminación del usuario cierran todas (revokeSession).
  */
 
 export const ACCESS_COOKIE_NAME = "token";
@@ -105,15 +107,24 @@ export const clearSessionCookies = (res) => {
 };
 
 /**
- * Abre la sesión del usuario, reemplazando cualquier sesión anterior
- * (política de sesión única). Devuelve el access token y el refresh token
- * en claro — este último solo existe aquí y en la cookie.
+ * Abre una sesión nueva del usuario, sin tocar las demás (varias sesiones por
+ * usuario, DEC-102). De paso borra las sesiones vencidas del usuario, para
+ * que la tabla no crezca sin control.
+ *
+ * `revokeOthers` cierra antes todas las demás sesiones del usuario: lo usa el
+ * cambio de la propia contraseña, para que ninguna copia de la contraseña
+ * anterior siga dentro.
+ *
+ * Devuelve el access token y el refresh token en claro — este último solo
+ * existe aquí y en la cookie.
  */
-export const createSession = async ({ user, ip, userAgent, auditOperation = null }) => {
+export const createSession = async ({ user, ip, userAgent, auditOperation = null, revokeOthers = false }) => {
   const sessionKey = crypto.randomUUID();
   const refreshToken = newRefreshToken();
+  const now = new Date();
 
   const data = {
+    use_id: user.useId,
     ses_key: sessionKey,
     ses_refresh_hash: sha256(refreshToken),
     ses_prev_refresh_hash: null,
@@ -121,22 +132,21 @@ export const createSession = async ({ user, ip, userAgent, auditOperation = null
     ses_expires_at: refreshExpiry(),
     ses_ip: ip?.slice(0, 45) ?? null,
     ses_user_agent: userAgent?.slice(0, 255) ?? null,
-    ses_create_at: new Date(),
+    ses_create_at: now,
   };
 
   // `auditOperation` (p. ej. LOGIN) se registra en la misma transacción que
   // la sesión: no puede quedar una sesión abierta sin su evento, ni al revés.
-  const previous = await withTransaction(async (tx) => {
-    const prev = await tx.tbl_sessions.findUnique({
-      where: { use_id: user.useId },
-      select: { ses_key: true },
-    });
+  const closed = await withTransaction(async (tx) => {
+    let others = [];
+    if (revokeOthers) {
+      others = await tx.tbl_sessions.findMany({ where: { use_id: user.useId }, select: { ses_key: true } });
+      await tx.tbl_sessions.deleteMany({ where: { use_id: user.useId } });
+    } else {
+      await tx.tbl_sessions.deleteMany({ where: { use_id: user.useId, ses_expires_at: { lte: now } } });
+    }
 
-    await tx.tbl_sessions.upsert({
-      where: { use_id: user.useId },
-      create: { use_id: user.useId, ...data },
-      update: data,
-    });
+    await tx.tbl_sessions.create({ data });
 
     if (auditOperation) {
       await writeAudit(tx, {
@@ -144,15 +154,14 @@ export const createSession = async ({ user, ip, userAgent, auditOperation = null
         recordId: user.useId,
         operation: auditOperation,
         ctx: { useId: user.useId, ip },
-        // Sesión única: dejar constancia de que este login cerró otra.
-        changes: prev ? [{ field: "sesion_anterior", oldValue: "activa", newValue: "cerrada" }] : [],
+        changes: [],
       });
     }
 
-    return prev;
+    return others;
   });
 
-  disconnectSessionSockets(previous?.ses_key);
+  closed.forEach((s) => disconnectSessionSockets(s.ses_key));
 
   return {
     sessionKey,
@@ -178,9 +187,11 @@ const toTokenUser = (u) => ({ useId: u.use_id, name: u.use_name, email: u.use_em
  * - Token desconocido → 401.
  * - Token ya rotado, dentro de la ventana de gracia → access token nuevo, sin
  *   rotar (pestañas concurrentes).
- * - Token ya rotado, fuera de la ventana → reutilización: se revoca la
- *   sesión completa (alguien más tenía ese token) y 401.
- * - Sesión vencida o usuario no activo → se revoca y 401.
+ * - Token ya rotado, fuera de la ventana → reutilización: se revoca esa
+ *   sesión (alguien más tenía ese token) y 401. Las demás sesiones del
+ *   usuario, en otros dispositivos, siguen.
+ * - Sesión vencida → se revoca esa sesión y 401.
+ * - Usuario no activo → se revocan todas sus sesiones y 401.
  */
 export const refreshSession = async ({ refreshToken }) => {
   if (!refreshToken) throw sessionError();
@@ -218,9 +229,11 @@ export const refreshSession = async ({ refreshToken }) => {
     }
 
     // Evento de seguridad relevante: alguien presentó un refresh token que
-    // ya había sido rotado (posible robo).
-    await revokeSession({
+    // ya había sido rotado (posible robo). Se cierra solo esa sesión.
+    await revokeSingleSession({
       useId: reused.tbl_users.use_id,
+      sesId: reused.ses_id,
+      sessionKey: reused.ses_key,
       audit: {
         operation: AUDIT_OPERATIONS.SESSION_REVOKED,
         ctx: { useId: null },
@@ -230,8 +243,13 @@ export const refreshSession = async ({ refreshToken }) => {
     throw sessionError();
   }
 
-  if (session.ses_expires_at.getTime() <= now || session.tbl_users.sta_id !== ACTIVE_STATUS) {
+  if (session.tbl_users.sta_id !== ACTIVE_STATUS) {
     await revokeSession({ useId: session.tbl_users.use_id });
+    throw sessionError();
+  }
+
+  if (session.ses_expires_at.getTime() <= now) {
+    await revokeSingleSession({ useId: session.tbl_users.use_id, sesId: session.ses_id, sessionKey: session.ses_key });
     throw sessionError();
   }
 
@@ -258,63 +276,90 @@ export const refreshSession = async ({ refreshToken }) => {
   };
 };
 
+const writeRevocationAudit = (tx, useId, audit) =>
+  writeAudit(tx, {
+    entity: AUDIT_ENTITIES.USER,
+    recordId: useId,
+    operation: audit.operation,
+    ctx: audit.ctx,
+    changes: audit.reason ? [{ field: "motivo", newValue: audit.reason }] : [],
+  });
+
 /**
- * Cierra la sesión del usuario (logout, cambio/restauración de contraseña,
- * desactivación). `audit` opcional ({ operation, ctx, reason }) se registra
- * en la misma transacción que el borrado de la sesión; se omite cuando la
- * revocación es consecuencia de otra operación ya auditada (eliminar un
- * usuario, restaurar la contraseña).
+ * Cierra **todas** las sesiones del usuario (cambio o restauración de la
+ * contraseña, desactivación, eliminación). `audit` opcional
+ * ({ operation, ctx, reason }) se registra en la misma transacción que el
+ * borrado; se omite cuando la revocación es consecuencia de otra operación
+ * ya auditada.
  */
 export const revokeSession = async ({ useId, audit = null }) => {
   if (!useId) return;
 
-  const previous = await withTransaction(async (tx) => {
-    const prev = await tx.tbl_sessions.findUnique({
+  const closed = await withTransaction(async (tx) => {
+    const sessions = await tx.tbl_sessions.findMany({
       where: { use_id: Number(useId) },
       select: { ses_key: true },
     });
-    if (!prev) return null;
+    if (sessions.length === 0) return [];
 
     await tx.tbl_sessions.deleteMany({ where: { use_id: Number(useId) } });
+    if (audit) await writeRevocationAudit(tx, useId, audit);
 
-    if (audit) {
-      await writeAudit(tx, {
-        entity: AUDIT_ENTITIES.USER,
-        recordId: useId,
-        operation: audit.operation,
-        ctx: audit.ctx,
-        changes: audit.reason ? [{ field: "motivo", newValue: audit.reason }] : [],
-      });
-    }
-
-    return prev;
+    return sessions;
   });
 
-  if (previous) disconnectSessionSockets(previous.ses_key);
+  closed.forEach((s) => disconnectSessionSockets(s.ses_key));
 };
 
 /**
- * Cierra la sesión solo si sigue siendo la del token presentado (mismo
- * ses_key). Un access token viejo —de una sesión ya reemplazada— no debe
- * poder cerrar la sesión vigente del usuario.
+ * Cierra una sola sesión (logout de un dispositivo, refresh token
+ * reutilizado, sesión vencida). Las demás sesiones del usuario siguen.
+ */
+const revokeSingleSession = async ({ useId, sesId, sessionKey, audit = null }) => {
+  const deleted = await withTransaction(async (tx) => {
+    const result = await tx.tbl_sessions.deleteMany({ where: { ses_id: sesId } });
+    if (result.count > 0 && audit) await writeRevocationAudit(tx, useId, audit);
+    return result.count > 0;
+  });
+
+  if (deleted) disconnectSessionSockets(sessionKey);
+};
+
+/**
+ * Cierra la sesión del token presentado (mismo ses_key), y solo esa. Un
+ * access token de una sesión que ya no existe no cierra nada.
  */
 export const revokeSessionByKey = async ({ useId, sessionKey, audit = null }) => {
   if (!useId || !sessionKey) return;
   const current = await prisma.tbl_sessions.findFirst({
     where: { use_id: Number(useId), ses_key: sessionKey },
-    select: { use_id: true },
+    select: { ses_id: true, use_id: true, ses_key: true },
   });
-  if (current) await revokeSession({ useId: current.use_id, audit: withActor(audit, current.use_id) });
+  if (current) {
+    await revokeSingleSession({
+      useId: current.use_id,
+      sesId: current.ses_id,
+      sessionKey: current.ses_key,
+      audit: withActor(audit, current.use_id),
+    });
+  }
 };
 
-/** Cierra la sesión dueña de un refresh token (logout sin access token vigente). */
+/** Cierra la sesión dueña de un refresh token (logout sin access token vigente), y solo esa. */
 export const revokeSessionByRefreshToken = async ({ refreshToken, audit = null }) => {
   if (!refreshToken) return;
   const session = await prisma.tbl_sessions.findUnique({
     where: { ses_refresh_hash: sha256(refreshToken) },
-    select: { use_id: true },
+    select: { ses_id: true, use_id: true, ses_key: true },
   });
-  if (session) await revokeSession({ useId: session.use_id, audit: withActor(audit, session.use_id) });
+  if (session) {
+    await revokeSingleSession({
+      useId: session.use_id,
+      sesId: session.ses_id,
+      sessionKey: session.ses_key,
+      audit: withActor(audit, session.use_id),
+    });
+  }
 };
 
 // En el logout el actor es el dueño de la sesión, identificado por su token

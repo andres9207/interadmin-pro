@@ -112,7 +112,7 @@ describe("auth.controller — el sujeto siempre sale de req.user", () => {
       useId: 1,
       ctx: { useId: 1, ip: "1.2.3.4" },
     });
-    expect(sessionMock.createSession).toHaveBeenCalledWith({ user, ip: "1.2.3.4", userAgent: "jest" });
+    expect(sessionMock.createSession).toHaveBeenCalledWith({ user, ip: "1.2.3.4", userAgent: "jest", revokeOthers: true });
     expect(sessionMock.setSessionCookies).toHaveBeenCalledWith(res, { accessToken: "a", refreshToken: "r" });
   });
 

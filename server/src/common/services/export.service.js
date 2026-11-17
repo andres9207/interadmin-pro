@@ -65,10 +65,16 @@ const httpError = (statusCode, message) => Object.assign(new Error(message), { s
 
 /**
  * Filas de un reporte con el `where` y el orden del listado, sin paginar.
- * Cuenta primero: si pasan del tope, 422 sin leerlas.
+ * Cuenta primero: si pasan del tope, 422 sin leerlas; si no hay ninguna, 422
+ * también: una tabla vacía no se exporta (pedido del usuario, 2026-11-17).
+ * `allowEmpty`: para quien no exporta un listado (el reporte de un extracto,
+ * que se ve en pantalla aunque no tenga facturas).
  */
-export const findExportRows = async (model, { where, select, orderBy }) => {
+export const findExportRows = async (model, { where, select, orderBy }, { allowEmpty = false } = {}) => {
   const total = await model.count({ where });
+  if (total === 0 && !allowEmpty) {
+    throw httpError(422, "No hay registros para exportar con los filtros aplicados.");
+  }
   if (total > EXPORT_MAX_ROWS) {
     throw httpError(422, `El reporte tendría ${total} filas y el máximo es ${EXPORT_MAX_ROWS}. Aplica más filtros e inténtalo de nuevo.`);
   }

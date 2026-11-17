@@ -1,6 +1,6 @@
 # DEC-002 — Sesión única, access 15 min + refresh 7 días rotado
 
-**Fecha:** 2026-09-24 · **Tipo:** Vigente · **ADR:** [0001](../adr/0001-seguridad.md) (B5, B13, B14)
+**Fecha:** 2026-09-24 · **Tipo:** Vigente · **ADR:** [0001](../adr/0001-seguridad.md) (B5, B13, B14) · **Reemplazada en parte por:** [DEC-102](DEC-102-varias-sesiones-por-usuario.md) (varias sesiones por usuario)
 
 ## Contexto
 

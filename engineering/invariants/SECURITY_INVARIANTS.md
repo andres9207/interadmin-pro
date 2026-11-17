@@ -10,7 +10,7 @@ La historia de cada una está en [`../anti-patterns/SECURITY.md`](../anti-patter
 | SEC-04 | El permiso efectivo es perfil ∪ excepciones del usuario, resuelto en cada petición | APLICADA | `effectivePermissions.service.js`, con test | ADR-0014 |
 | SEC-05 | No existe ningún caso especial de código por id de usuario o de perfil | CONVENCIÓN | Revisión | `anti-patterns/SECURITY.md` |
 | SEC-06 | Nadie se asigna permisos a sí mismo ni a su propio perfil | APLICADA | `permissions.service.js` responde 403, con test | ADR-0014 |
-| SEC-07 | Un usuario tiene como máximo una sesión | APLICADA | `UNIQUE(use_id)` en `tbl_sessions` | DEC-002 |
+| SEC-07 | Cambiar o restaurar la contraseña, desactivar o eliminar un usuario cierra todas sus sesiones (salvo, al cambiar la propia, la del dispositivo que la cambia). Un usuario puede tener varias sesiones; hasta el 2026-11-17 decía "como máximo una sesión" | APLICADA | `revokeSession` y `createSession({ revokeOthers })` en `session.service.js`, con test | DEC-102 |
 | SEC-08 | Tokens, contraseñas y códigos nunca viajan en el body de una respuesta ni quedan en logs; en la bitácora quedan como `[oculto]` | APLICADA en la bitácora (`SENSITIVE_FIELDS`); CONVENCIÓN en respuestas y logs | `audit.service.js` | ADR-0001, ADR-0013 |
 | SEC-09 | La recuperación de contraseña responde igual, en status, cuerpo y tiempo, exista o no la cuenta | APLICADA | `forgotPassword`: piso de tiempo + envío desacoplado, con test | ADR-0001 |
 | SEC-10 | El servidor no arranca sin `JWT_SECRET` | APLICADA | `server.js` | ADR-0001 |
