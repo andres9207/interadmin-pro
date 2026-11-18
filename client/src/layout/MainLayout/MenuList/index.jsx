@@ -80,6 +80,10 @@ const getIconByName = (iconName) => {
   if (name.includes('invoice')) {
     return TablerIcons.IconFileInvoice;
   }
+  // Gerencia extractos (DEC-103): el fondo rotatorio de la obra.
+  if (name.includes('money')) {
+    return TablerIcons.IconReportMoney;
+  }
   return TablerIcons.IconCircleDot || null;
 };
 

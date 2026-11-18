@@ -29,6 +29,7 @@ import contractsRoutes from "./work/contracts/contracts.routes.js";
 // billing
 import invoicesRoutes from "./billing/invoices/invoices.routes.js";
 import statementsRoutes from "./billing/statements/statements.routes.js";
+import statementManagementRoutes from "./billing/statementManagement/statementManagement.routes.js";
 
 const mainRoutes = express.Router();
 
@@ -64,5 +65,6 @@ mainRoutes.use("/work/contracts", contractsRoutes);
 // Billing (DEC-042)
 mainRoutes.use("/billing/invoices", invoicesRoutes);
 mainRoutes.use("/billing/statements", statementsRoutes);
+mainRoutes.use("/billing/statementManagement", statementManagementRoutes);
 
 export default mainRoutes;

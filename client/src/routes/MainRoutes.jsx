@@ -34,6 +34,7 @@ const InvoicesPage = Loadable(lazy(() => import('views/billing/invoices/Invoices
 const InvoiceDetailPage = Loadable(lazy(() => import('views/billing/invoices/InvoiceDetailPage')));
 const InvoiceFormPage = Loadable(lazy(() => import('views/billing/invoices/InvoiceFormPage')));
 const StatementsPage = Loadable(lazy(() => import('views/billing/statements/StatementsPage')));
+const StatementManagementPage = Loadable(lazy(() => import('views/billing/statementManagement/StatementManagementPage')));
 
 // ==============================|| MAIN ROUTING ||============================== //
 
@@ -156,7 +157,9 @@ const MainRoutes = {
               path: 'statements',
               element: <StatementsPage />,
               children: [{ path: 'invoices/:invId', element: <InvoiceDetailPage /> }]
-            }
+            },
+            // Gerencia extractos (DEC-103): el fondo rotatorio de la obra o de cada etapa.
+            { path: 'statementManagement', element: <StatementManagementPage /> }
           ]
         }
       ]

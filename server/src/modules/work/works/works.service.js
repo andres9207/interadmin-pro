@@ -68,6 +68,9 @@ const httpError = (statusCode, message) => Object.assign(new Error(message), { s
 const WORK_DEPENDENTS = [
   { model: "tbl_contracts", column: "wrk_id", label: "contrato(s)" },
   { model: "tbl_invoices", column: "wrk_id", label: "factura(s)" },
+  // Fondo rotatorio de la obra o de sus etapas (DEC-103).
+  { model: "tbl_rotating_funds", column: "wrk_id", label: "fondo(s) rotatorio(s)" },
+  { model: "tbl_fund_movements", column: "wrk_id", label: "acta(s) o abono(s) de Gerencia extractos" },
 ];
 
 // ─── Listado ─────────────────────────────────────────────────────────────────
@@ -700,6 +703,9 @@ const assertStagesRemovable = async (tx, wrkId, toDelete) => {
   };
   await usedBy("tbl_contracts", "contratos");
   await usedBy("tbl_invoices", "facturas");
+  // También los fondos eliminados: su FK sigue apuntando a la etapa (DEC-103).
+  await usedBy("tbl_rotating_funds", "fondo rotatorio");
+  await usedBy("tbl_fund_movements", "actas o abonos de Gerencia extractos");
 };
 
 const hasChanges = (diff) => diff.toInsert.length > 0 || diff.toDelete.length > 0 || diff.toUpdate.length > 0;

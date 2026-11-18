@@ -49,6 +49,10 @@ export const UNIQUE_CONSTRAINT_MESSAGES = Object.freeze({
   uq_invoice_follow_ups_open: "La factura ya tiene un seguimiento abierto: ciérralo antes de abrir otro.",
   uq_invoices_provider_number_active: "Ya existe una factura con ese número para el proveedor.",
   uq_statements_work_number_active: "Ya existe un extracto con ese número en esta obra.",
+  // Gerencia extractos (DEC-103)
+  uq_rotating_funds_work_stage_active: "Ya existe un fondo rotatorio para esa obra o etapa.",
+  uq_fund_movements_work_number_active: "Ya existe un acta o abono con ese número en esta obra o etapa.",
+  uq_fund_movements_paid_active: "Esa acta ya tiene un abono que la paga.",
 
   // Pólizas
   uq_policies_current: "La póliza cambió mientras la modificabas. Actualiza la vista e intenta de nuevo.",
@@ -109,6 +113,10 @@ export const INTERNAL_UNIQUE_CONSTRAINTS = Object.freeze([
   "uq_invoice_status_history_idempotency_key",
   "uq_invoice_follow_ups_idempotency_key",
   "uq_statements_idempotency_key",
+  "uq_rotating_funds_idempotency_key",
+  "uq_fund_movements_idempotency_key",
+  // Apoyo de la FK compuesta abono → acta de la misma obra (0131)
+  "uq_fund_movements_id_work",
   "uq_invoice_glosses_idempotency_key",
   // Un campo por glosa (0129): el service rechaza los repetidos
   "uq_invoice_gloss_fields_field",

@@ -26,6 +26,8 @@ const prismaMock = {
   tbl_providers: { findMany: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn() },
   tbl_contracts: { findMany: jest.fn(), count: jest.fn() },
   tbl_invoices: { findMany: jest.fn(), count: jest.fn() },
+  tbl_rotating_funds: { findMany: jest.fn(), count: jest.fn() },
+  tbl_fund_movements: { findMany: jest.fn(), count: jest.fn() },
   tbl_construction_companies: { findUnique: jest.fn() },
   tbl_contract_types: { findUnique: jest.fn() },
   tbl_supervision_types: { findUnique: jest.fn() },
@@ -99,6 +101,10 @@ beforeEach(() => {
   prismaMock.tbl_contracts.count.mockResolvedValue(0);
   prismaMock.tbl_invoices.findMany.mockResolvedValue([]);
   prismaMock.tbl_invoices.count.mockResolvedValue(0);
+  prismaMock.tbl_rotating_funds.findMany.mockResolvedValue([]);
+  prismaMock.tbl_rotating_funds.count.mockResolvedValue(0);
+  prismaMock.tbl_fund_movements.findMany.mockResolvedValue([]);
+  prismaMock.tbl_fund_movements.count.mockResolvedValue(0);
   prismaMock.tbl_users.findMany.mockImplementation(async ({ where }) =>
     where.use_id.in.map((id) => ({ use_id: id, sta_id: 1, use_name: "Usuario", use_last_name: String(id) }))
   );
@@ -294,6 +300,15 @@ describe("saveWork — editar", () => {
       message: 'No se puede quitar la etapa "Estructura": tiene facturas. Desactívala en su lugar.',
     });
     expect(prismaMock.tbl_invoices.findMany.mock.calls[0][0].where).toEqual({ wrk_id: 40, wks_id: { in: [12] } });
+    expect(prismaMock.tbl_work_stages.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("no quita una etapa con fondo rotatorio (409, DEC-103)", async () => {
+    prismaMock.tbl_rotating_funds.findMany.mockResolvedValue([{ wks_id: 12 }]);
+    await expect(service.saveWork({ wrkId: 40, input: editInput(), useBy: 9, granted: ALL, ctx })).rejects.toMatchObject({
+      statusCode: 409,
+      message: 'No se puede quitar la etapa "Estructura": tiene fondo rotatorio. Desactívala en su lugar.',
+    });
     expect(prismaMock.tbl_work_stages.deleteMany).not.toHaveBeenCalled();
   });
 
@@ -493,6 +508,15 @@ describe("changeWorkStatus y deleteWork", () => {
     await expect(service.deleteWork({ wrkId: 40, useBy: 9, ctx })).rejects.toMatchObject({
       statusCode: 409,
       message: "No se puede eliminar la obra: tiene 3 factura(s) asociado(s).",
+    });
+    expect(prismaMock.tbl_works.update).not.toHaveBeenCalled();
+  });
+
+  it("con fondo rotatorio no se elimina (409, DEC-103)", async () => {
+    prismaMock.tbl_rotating_funds.count.mockResolvedValue(1);
+    await expect(service.deleteWork({ wrkId: 40, useBy: 9, ctx })).rejects.toMatchObject({
+      statusCode: 409,
+      message: "No se puede eliminar la obra: tiene 1 fondo(s) rotatorio(s) asociado(s).",
     });
     expect(prismaMock.tbl_works.update).not.toHaveBeenCalled();
   });

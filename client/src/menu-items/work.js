@@ -1,5 +1,13 @@
 // assets
-import { IconBuilding, IconContract, IconFileDescription, IconHome, IconTruck } from '@tabler/icons-react';
+import {
+  IconBuilding,
+  IconContract,
+  IconFileDescription,
+  IconFileInvoice,
+  IconHome,
+  IconReportMoney,
+  IconTruck
+} from '@tabler/icons-react';
 
 import { contractPath } from 'utils/constants';
 
@@ -45,7 +53,24 @@ const work = {
           icon: IconTruck,
           breadcrumbs: true
         },
-        contracts
+        contracts,
+        // Extractos (DEC-084) y Gerencia extractos (DEC-103), también del grupo Inicio.
+        {
+          id: 'statements',
+          title: 'Extractos',
+          type: 'item',
+          url: '/billing/statements',
+          icon: IconFileInvoice,
+          breadcrumbs: true
+        },
+        {
+          id: 'statement-management',
+          title: 'Gerencia extractos',
+          type: 'item',
+          url: '/billing/statementManagement',
+          icon: IconReportMoney,
+          breadcrumbs: true
+        }
       ]
     }
   ]

@@ -24,7 +24,7 @@ Decidido por el usuario el 2026-10-26 ("como acta del WebPAC"), a partir del doc
 
 - Un selector de extractos en la factura (2026-10-26 a 2026-10-27): obligaba a crear el extracto antes de facturar. El usuario pidió un campo abierto.
 - Solo texto, sin extractos registrados: se perdían la fecha y el comunicado del acta y la regla de las glosas ("liberar en un extracto posterior", DEC-085).
-- Llevar al extracto el valor pagado, el anticipo y la amortización del acta de WebPAC: son del fondo rotatorio y de la fiducia, excluidos del alcance. "Total pagado por acta" queda con ellos.
+- Llevar al extracto el valor pagado, el anticipo y la amortización del acta de WebPAC: son del fondo rotatorio y de la fiducia, excluidos del alcance. "Total pagado por acta" queda con ellos. Desde el 2026-11-18 se registran aparte, en Gerencia extractos ([DEC-103](DEC-103-gerencia-extractos-fondo-rotatorio.md)).
 
 ## Pendiente
 

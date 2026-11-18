@@ -60,6 +60,9 @@ export const LOCK_ORDER = Object.freeze([
   // El extracto de la obra (DEC-084): se bloquea después de la factura que se
   // glosa (DEC-085).
   "EXTRACTO",
+  // Fondo rotatorio de la obra (DEC-103): raíz de sus actas y abonos. Se
+  // bloquea después de la obra; no se mezcla con facturas ni contratos.
+  "FONDO_ROTATORIO",
   "POLIZA",
   "CONCEPTO",
   "DOCUMENTO",
@@ -104,6 +107,7 @@ const LOCKABLE = Object.freeze({
   CONTRATO: { table: "tbl_contracts", id: "ctr_id" },
   FACTURA: { table: "tbl_invoices", id: "inv_id" },
   EXTRACTO: { table: "tbl_statements", id: "stm_id" },
+  FONDO_ROTATORIO: { table: "tbl_rotating_funds", id: "rfd_id" },
   CONCEPTO: { table: "tbl_contract_concepts", id: "ccp_id" },
   POLIZA: { table: "tbl_policies", id: "pol_id" },
   REGLA_NEGOCIO: { table: "tbl_business_rules", id: "bru_id" },

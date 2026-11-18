@@ -200,6 +200,8 @@ model tbl_status {
   tbl_invoices               tbl_invoices[]
   tbl_invoice_follow_ups     tbl_invoice_follow_ups[]
   tbl_statements             tbl_statements[]
+  tbl_rotating_funds         tbl_rotating_funds[]
+  tbl_fund_movements         tbl_fund_movements[]
   tbl_invoice_glosses        tbl_invoice_glosses[]
   tbl_policy_types           tbl_policy_types[]
   tbl_profiles               tbl_profiles[]
@@ -302,6 +304,12 @@ model tbl_users {
   statements_created                       tbl_statements[]                       @relation("StatementCreatedBy")
   statements_deleted                       tbl_statements[]                       @relation("StatementDeletedBy")
   statements_updated                       tbl_statements[]                       @relation("StatementUpdatedBy")
+  rotating_funds_created                   tbl_rotating_funds[]                   @relation("RotatingFundCreatedBy")
+  rotating_funds_deleted                   tbl_rotating_funds[]                   @relation("RotatingFundDeletedBy")
+  rotating_funds_updated                   tbl_rotating_funds[]                   @relation("RotatingFundUpdatedBy")
+  fund_movements_created                   tbl_fund_movements[]                   @relation("FundMovementCreatedBy")
+  fund_movements_deleted                   tbl_fund_movements[]                   @relation("FundMovementDeletedBy")
+  fund_movements_updated                   tbl_fund_movements[]                   @relation("FundMovementUpdatedBy")
   invoice_glosses_released                 tbl_invoice_glosses[]                  @relation("InvoiceGlossReleasedBy")
   invoice_glosses_created                  tbl_invoice_glosses[]                  @relation("InvoiceGlossCreatedBy")
   invoice_glosses_updated                  tbl_invoice_glosses[]                  @relation("InvoiceGlossUpdatedBy")
@@ -656,6 +664,8 @@ model tbl_works {
   tbl_work_managers           tbl_work_managers[]
   tbl_work_providers          tbl_work_providers[]
   tbl_statements              tbl_statements[]
+  tbl_rotating_funds          tbl_rotating_funds[]
+  tbl_fund_movements          tbl_fund_movements[]
   tbl_work_stages             tbl_work_stages[]
   tbl_construction_companies  tbl_construction_companies @relation(fields: [cnc_id], references: [cnc_id], onUpdate: Restrict, map: "tbl_works_construction_company")
   tbl_contract_types          tbl_contract_types         @relation(fields: [ctt_id], references: [ctt_id], onUpdate: Restrict, map: "tbl_works_contract_type")
@@ -710,8 +720,10 @@ model tbl_work_stages {
   wks_create_at   DateTime?       @default(now()) @db.Timestamp(0)
   wks_update_by   Int?
   wks_update_at   DateTime?       @default(now()) @db.Timestamp(0)
-  tbl_contracts   tbl_contracts[]
-  tbl_invoices    tbl_invoices[]
+  tbl_contracts      tbl_contracts[]
+  tbl_invoices       tbl_invoices[]
+  tbl_rotating_funds tbl_rotating_funds[]
+  tbl_fund_movements tbl_fund_movements[]
   created_by_user tbl_users?      @relation("WorkStageCreatedBy", fields: [wks_create_by], references: [use_id], onDelete: Restrict, onUpdate: Restrict, map: "tbl_work_stages_create_by")
   tbl_status      tbl_status      @relation(fields: [sta_id], references: [sta_id], onUpdate: Restrict, map: "tbl_work_stages_status")
   updated_by_user tbl_users?      @relation("WorkStageUpdatedBy", fields: [wks_update_by], references: [use_id], onDelete: Restrict, onUpdate: Restrict, map: "tbl_work_stages_update_by")
@@ -1563,4 +1575,83 @@ enum tbl_documents_doc_type {
 
 enum tbl_status_sta_scope {
   GENERAL
+}
+
+/// Fondo rotatorio de la obra o de una etapa (database/migrations/0131_create_rotating_funds.sql, DEC-103).
+/// rfd_stage_active es una columna GENERADA por MySQL (un fondo por obra y etapa entre no eliminados): nunca se escribe.
+model tbl_rotating_funds {
+  rfd_id               Int                  @id @default(autoincrement())
+  wrk_id               Int
+  wks_id               Int?
+  rfd_limit            Decimal              @db.Decimal(18, 2)
+  rfd_description      String?              @db.VarChar(500)
+  sta_id               Int                  @default(1)
+  rfd_create_by        Int?
+  rfd_create_at        DateTime?            @default(now()) @db.Timestamp(0)
+  rfd_update_by        Int?
+  rfd_update_at        DateTime?            @default(now()) @db.Timestamp(0)
+  rfd_delete_by        Int?
+  rfd_delete_at        DateTime?            @db.Timestamp(0)
+  rfd_idempotency_key  String?              @unique(map: "uq_rotating_funds_idempotency_key") @db.Char(36)
+  rfd_idempotency_hash String?              @db.Char(64)
+  rfd_stage_active     Int?
+  created_by_user      tbl_users?           @relation("RotatingFundCreatedBy", fields: [rfd_create_by], references: [use_id], onDelete: Restrict, onUpdate: Restrict, map: "tbl_rotating_funds_create_by")
+  deleted_by_user      tbl_users?           @relation("RotatingFundDeletedBy", fields: [rfd_delete_by], references: [use_id], onDelete: Restrict, onUpdate: Restrict, map: "tbl_rotating_funds_delete_by")
+  updated_by_user      tbl_users?           @relation("RotatingFundUpdatedBy", fields: [rfd_update_by], references: [use_id], onDelete: Restrict, onUpdate: Restrict, map: "tbl_rotating_funds_update_by")
+  tbl_work_stages      tbl_work_stages?     @relation(fields: [wks_id, wrk_id], references: [wks_id, wrk_id], onUpdate: Restrict, map: "tbl_rotating_funds_stage")
+  tbl_status           tbl_status           @relation(fields: [sta_id], references: [sta_id], onUpdate: Restrict, map: "tbl_rotating_funds_status")
+  tbl_works            tbl_works            @relation(fields: [wrk_id], references: [wrk_id], onUpdate: Restrict, map: "tbl_rotating_funds_work")
+
+  @@unique([wrk_id, rfd_stage_active], map: "uq_rotating_funds_work_stage_active")
+  @@index([wks_id, wrk_id], map: "idx_rotating_funds_stage")
+  @@index([rfd_create_by], map: "tbl_rotating_funds_create_by")
+  @@index([rfd_delete_by], map: "tbl_rotating_funds_delete_by")
+  @@index([sta_id], map: "tbl_rotating_funds_status")
+  @@index([rfd_update_by], map: "tbl_rotating_funds_update_by")
+}
+
+/// Actas aprobadas y abonos de la obra o de una etapa (database/migrations/0131_create_rotating_funds.sql, DEC-103). El
+/// valor del acta sale de las facturas de su extracto; fmv_value solo lo guarda el abono. fmv_number_active y
+/// fmv_paid_active son columnas GENERADAS por MySQL (número único en el ámbito; un abono por acta): nunca se escriben.
+model tbl_fund_movements {
+  fmv_id               Int                  @id @default(autoincrement())
+  wrk_id               Int
+  wks_id               Int?
+  fmv_type             String               @db.VarChar(10)
+  fmv_number           String               @db.VarChar(20)
+  fmv_document_date    DateTime             @db.Date
+  fmv_approval_date    DateTime             @db.Date
+  fmv_value            Decimal?             @db.Decimal(18, 2)
+  fmv_withholding      Decimal?             @db.Decimal(18, 2)
+  fmv_amortization     Decimal?             @db.Decimal(18, 2)
+  fmv_paid_id          Int?
+  fmv_description      String?              @db.VarChar(500)
+  sta_id               Int                  @default(1)
+  fmv_create_by        Int?
+  fmv_create_at        DateTime?            @default(now()) @db.Timestamp(0)
+  fmv_update_by        Int?
+  fmv_update_at        DateTime?            @default(now()) @db.Timestamp(0)
+  fmv_delete_by        Int?
+  fmv_delete_at        DateTime?            @db.Timestamp(0)
+  fmv_idempotency_key  String?              @unique(map: "uq_fund_movements_idempotency_key") @db.Char(36)
+  fmv_idempotency_hash String?              @db.Char(64)
+  fmv_number_active    String?              @db.VarChar(40)
+  fmv_paid_active      Int?                 @unique(map: "uq_fund_movements_paid_active")
+  created_by_user      tbl_users?           @relation("FundMovementCreatedBy", fields: [fmv_create_by], references: [use_id], onDelete: Restrict, onUpdate: Restrict, map: "tbl_fund_movements_create_by")
+  deleted_by_user      tbl_users?           @relation("FundMovementDeletedBy", fields: [fmv_delete_by], references: [use_id], onDelete: Restrict, onUpdate: Restrict, map: "tbl_fund_movements_delete_by")
+  updated_by_user      tbl_users?           @relation("FundMovementUpdatedBy", fields: [fmv_update_by], references: [use_id], onDelete: Restrict, onUpdate: Restrict, map: "tbl_fund_movements_update_by")
+  paid_movement        tbl_fund_movements?  @relation("FundMovementPaid", fields: [fmv_paid_id, wrk_id], references: [fmv_id, wrk_id], onUpdate: Restrict, map: "tbl_fund_movements_paid")
+  paying_movements     tbl_fund_movements[] @relation("FundMovementPaid")
+  tbl_work_stages      tbl_work_stages?     @relation(fields: [wks_id, wrk_id], references: [wks_id, wrk_id], onUpdate: Restrict, map: "tbl_fund_movements_stage")
+  tbl_status           tbl_status           @relation(fields: [sta_id], references: [sta_id], onUpdate: Restrict, map: "tbl_fund_movements_status")
+  tbl_works            tbl_works            @relation(fields: [wrk_id], references: [wrk_id], onUpdate: Restrict, map: "tbl_fund_movements_work")
+
+  @@unique([fmv_id, wrk_id], map: "uq_fund_movements_id_work")
+  @@unique([wrk_id, fmv_number_active], map: "uq_fund_movements_work_number_active")
+  @@index([fmv_paid_id, wrk_id], map: "idx_fund_movements_paid")
+  @@index([wks_id, wrk_id], map: "idx_fund_movements_stage")
+  @@index([fmv_create_by], map: "tbl_fund_movements_create_by")
+  @@index([fmv_delete_by], map: "tbl_fund_movements_delete_by")
+  @@index([sta_id], map: "tbl_fund_movements_status")
+  @@index([fmv_update_by], map: "tbl_fund_movements_update_by")
 }

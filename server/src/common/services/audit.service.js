@@ -35,6 +35,9 @@ export const AUDIT_ENTITIES = Object.freeze({
   STATEMENT: "EXTRACTO",
   // Glosa de una factura (DEC-085).
   INVOICE_GLOSS: "GLOSA_FACTURA",
+  // Fondo rotatorio de la obra y sus actas y abonos (DEC-103).
+  ROTATING_FUND: "FONDO_ROTATORIO",
+  FUND_MOVEMENT: "MOVIMIENTO_FONDO",
   POLICY_TYPE: "TIPO_POLIZA",
   POLICY: "POLIZA",
   // Días de aviso de vencimiento (DEC-072).

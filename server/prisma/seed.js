@@ -51,6 +51,17 @@ const PAGES = [
   { pag_id: 20, pag_description: "Tipos de póliza", pag_parent: 5, pag_url: "admin/policyTypes", pag_icon: "shield-check", pag_order: 9, pag_name: "Tipos de póliza", pag_type: 2 },
   // database/migrations/0119_create_statements.sql (DEC-084)
   { pag_id: 21, pag_description: "Extractos", pag_parent: 13, pag_url: "billing/statements", pag_icon: "invoice", pag_order: 6, pag_name: "Extractos", pag_type: 2 },
+  // database/migrations/0132_seed_statement_management_pages_permissions.sql (DEC-103)
+  {
+    pag_id: 24,
+    pag_description: "Gerencia extractos",
+    pag_parent: 13,
+    pag_url: "billing/statementManagement",
+    pag_icon: "report-money",
+    pag_order: 7,
+    pag_name: "Gerencia extractos",
+    pag_type: 2,
+  },
 ];
 
 const PERMISSIONS = [
@@ -180,6 +191,10 @@ const PERMISSIONS = [
   { per_id: 124, per_name: "Exportar obras", pag_id: 14, per_order: 10 },
   // database/migrations/0128_seed_providers_export_permission.sql (DEC-070)
   { per_id: 125, per_name: "Exportar proveedores", pag_id: 15, per_order: 9 },
+  // database/migrations/0132_seed_statement_management_pages_permissions.sql (DEC-103)
+  { per_id: 127, per_name: "Gestionar fondo rotatorio", pag_id: 24, per_order: 1 },
+  { per_id: 128, per_name: "Gestionar actas y abonos del fondo", pag_id: 24, per_order: 2 },
+  { per_id: 129, per_name: "Exportar gerencia extractos", pag_id: 24, per_order: 3 },
 ];
 
 // Sin pag_id: document.routes.js no tiene página propia en el sidebar (ver
@@ -225,6 +240,7 @@ const VIEW_PERMISSIONS = [
   { per_id: 93, per_name: "Ver tipos de póliza", pag_id: 20, per_order: 5 },
   { per_id: 99, per_name: "Ver pólizas", pag_id: 16, per_order: 12 },
   { per_id: 118, per_name: "Ver extractos", pag_id: 21, per_order: 0 },
+  { per_id: 126, per_name: "Ver gerencia extractos", pag_id: 24, per_order: 0 },
 ];
 
 // Perfil sembrado como superadmin en esta sesión (ver tbl_profiles). No hay

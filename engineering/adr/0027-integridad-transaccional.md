@@ -461,7 +461,7 @@ Tabla completa de datos financieros en [ADR-0026](0026-calculos-facturacion.md),
 **El protocolo se cumple por construcción.** El service declara *qué* bloquear (`{ CONTRATO: [7, 3], FACTURA: 9 }`), y la utilidad decide *cuándo* y *en qué orden*:
 
 - Los bloqueos son las primeras sentencias de lectura: `fn` recibe el `tx` después de ellos.
-- Las entidades siguen `LOCK_ORDER`: `OBRA → PROVEEDOR → CONTRATO → FACTURA → EXTRACTO → POLIZA → CONCEPTO → DOCUMENTO → PERFIL → USUARIO →` maestros `→ REGLA_NEGOCIO`. El orden del CORE es el de la decisión 3, con la obra primero ([DEC-026](../decisiones/DEC-026-area-obras.md)). Las entidades actuales quedan después en un único orden total, y los maestros al final ([DEC-019](../decisiones/DEC-019-maestros-orden-bloqueo.md)).
+- Las entidades siguen `LOCK_ORDER`: `OBRA → PROVEEDOR → CONTRATO → FACTURA → EXTRACTO → FONDO_ROTATORIO → POLIZA → CONCEPTO → DOCUMENTO → PERFIL → USUARIO →` maestros `→ REGLA_NEGOCIO`. El orden del CORE es el de la decisión 3, con la obra primero ([DEC-026](../decisiones/DEC-026-area-obras.md)). Las entidades actuales quedan después en un único orden total, y los maestros al final ([DEC-019](../decisiones/DEC-019-maestros-orden-bloqueo.md)).
 - Los ids van en orden ascendente. En el ejemplo se bloquea contrato 3, contrato 7 y después factura 9.
 - Una entidad fuera de `LOCK_ORDER`, o sin tabla registrada en `LOCKABLE`, lanza un error antes de abrir la transacción. Al crear la tabla de contratos, facturas, pólizas o conceptos, se agrega su entrada a `LOCKABLE`; su posición en el orden ya está fijada.
 

@@ -1274,6 +1274,34 @@ export const statementInvoices = async ({ wrkId, number }) =>
   ).map((row) => ({ ...toListDto(row), voucherNumber: row.inv_voucher_number, amounts: statementAmounts(row) }));
 
 /**
+ * Facturas no eliminadas de la obra con algún extracto escrito, cada una con
+ * su etapa (DEC-103): la simple, la suya; la de contrato, la de su contrato;
+ * `wksId` null si no tiene. Las actas de Gerencia extractos son estos
+ * extractos. Tope de un reporte (EXPORT_MAX_ROWS): si se pasa, 422.
+ */
+export const workStatementInvoices = async ({ wrkId }) =>
+  (
+    await findExportRows(
+      prisma.tbl_invoices,
+      {
+        where: { wrk_id: Number(wrkId), inv_statement: { not: null }, NOT: { inv_statement: "" }, sta_id: { not: DELETED_STATUS } },
+        select: {
+          ...LIST_SELECT,
+          inv_voucher_number: true,
+          wks_id: true,
+          tbl_contracts: { select: { ...LIST_SELECT.tbl_contracts.select, wks_id: true } },
+        },
+        orderBy: [{ inv_date: "asc" }, { inv_id: "asc" }],
+      },
+      { allowEmpty: true },
+    )
+  ).map((row) => ({
+    ...toListDto(row),
+    voucherNumber: row.inv_voucher_number,
+    wksId: row.wks_id ?? row.tbl_contracts?.wks_id ?? null,
+  }));
+
+/**
  * Facturas no eliminadas de varios extractos a la vez (una página del listado
  * de extractos): las de esas obras con esos textos, con los importes del
  * listado. Quien llama las reparte por obra y texto.

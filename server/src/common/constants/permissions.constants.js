@@ -229,5 +229,13 @@ export const PERMISSIONS = {
       delete: 121,
       export: 122,
     },
+    // Gerencia extractos (DEC-103): el fondo rotatorio de la obra o de una
+    // etapa, con sus actas y abonos. Exportar exige además ver.
+    statementManagement: {
+      view: 126, // get_management, get_scope_report
+      manageFunds: 127, // save_fund (crear y cambiar el tope), delete_fund
+      manageMovements: 128, // save_fund_movement (aprobar actas y registrar abonos), delete_fund_movement
+      export: 129,
+    },
   },
 };
