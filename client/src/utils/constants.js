@@ -222,6 +222,9 @@ export const invoicePath = (pvtId, invId, suffix) =>
 /** Pantalla de extractos (DEC-084), y una factura abierta encima de ella, sin salir: `statementsPath(70)`. */
 export const STATEMENTS_PATH = '/billing/statements';
 export const statementsPath = (invId) => (invId ? `${STATEMENTS_PATH}/invoices/${invId}` : STATEMENTS_PATH);
+/** Gerencia extractos (DEC-103), y una factura abierta encima de ella, sin salir: `statementManagementPath(70)`. */
+export const STATEMENT_MANAGEMENT_PATH = '/billing/statementManagement';
+export const statementManagementPath = (invId) => (invId ? `${STATEMENT_MANAGEMENT_PATH}/invoices/${invId}` : STATEMENT_MANAGEMENT_PATH);
 export const reasonScopeName = (scope) => REASON_SCOPE_OPTIONS.find((o) => o.value === scope)?.label ?? scope;
 
 const TERM_UNIT_NAMES = { DIA: ['día', 'días'], MES: ['mes', 'meses'], ANIO: ['año', 'años'] };

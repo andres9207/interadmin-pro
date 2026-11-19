@@ -55,7 +55,12 @@ describe("cuadro de octubre de FLOR - ETAPA 4", () => {
   });
 
   it("el acta normal amortiza su valor completo y sale de la fiducia nada", () => {
-    expect(byNumber("NORMAL", "25")).toMatchObject({ letter: "A", fiduciary: null, actValue: "288980846.00", amortization: "288980846.00" });
+    expect(byNumber("NORMAL", "25")).toMatchObject({
+      letter: "A",
+      fiduciary: null,
+      actValue: "288980846.00",
+      amortization: "288980846.00",
+    });
   });
 
   it("cada acta sabe qué abono la paga, y cada abono qué acta paga", () => {
@@ -120,5 +125,89 @@ describe("saldo negativo y orden", () => {
     expect(rows).toEqual([]);
     expect(months).toEqual([]);
     expect(summary).toMatchObject({ limit: "500.00", balance: "0.00", owed: "0.00", actsValue: "0.00" });
+  });
+});
+
+// Febrero a mayo del mismo cuadro: la diferencia entre cada acta y el abono que
+// la paga. El abono paga lo que el acta amortiza, no su valor: en la especial
+// (E), lo que la fiducia pagó directo a los proveedores no se le debe a nadie.
+const APRIL_MAY = [
+  movement(1, "NORMAL", "01", "2026-02-15", "2026-02-16", "89072002.00"),
+  movement(2, "NORMAL", "02", "2026-04-17", "2026-04-18", "65564532.00"),
+  movement(11, "PAYMENT", "01", "2026-04-22", "2026-04-22", "89072002.00", { paidId: 1 }),
+  movement(12, "PAYMENT", "02", "2026-04-22", "2026-04-22", "65564532.00", { paidId: 2 }),
+  movement(13, "PAYMENT", "03", "2026-04-29", "2026-04-29", "1000000000.00"),
+  movement(3, "NORMAL", "03", "2026-04-29", "2026-05-11", "217577.00"),
+  movement(4, "SPECIAL", "04", "2026-05-05", "2026-05-11", "14947968.00", { withholding: "273271.00", amortization: "273271.00" }),
+  movement(5, "NORMAL", "05", "2026-05-06", "2026-05-11", "54968410.00"),
+  movement(14, "PAYMENT", "04", "2026-05-20", "2026-05-20", "217577.00", { paidId: 3 }),
+  movement(15, "PAYMENT", "05", "2026-05-20", "2026-05-20", "273271.00", { paidId: 4 }),
+  movement(16, "PAYMENT", "06", "2026-05-20", "2026-05-20", "54968410.00", { paidId: 5 }),
+  movement(6, "NORMAL", "06", "2026-05-21", "2026-05-22", "44063696.00"),
+];
+
+describe("acta frente a abono, febrero a mayo de FLOR - ETAPA 4", () => {
+  const figures = fundFiguresText(fundFigures(APRIL_MAY, "1000000000.00"));
+  const row = (type, number) => figures.rows.find((r) => (type === "PAYMENT") === (r.type === "PAYMENT") && r.number === number);
+
+  it("el saldo pasa por negativo, cero y el tope, como el cuadro", () => {
+    expect(figures.rows.map((r) => [r.letter, r.number, r.balanceAfter])).toEqual([
+      ["A", "01", "-89072002.00"],
+      ["A", "02", "-154636534.00"],
+      ["F", "01", "-65564532.00"],
+      ["F", "02", "0.00"],
+      ["F", "03", "1000000000.00"],
+      ["A", "03", "999782423.00"],
+      ["E", "04", "999509152.00"],
+      ["A", "05", "944540742.00"],
+      ["F", "04", "944758319.00"],
+      ["F", "05", "945031590.00"],
+      ["F", "06", "1000000000.00"],
+      ["A", "06", "955936304.00"],
+    ]);
+  });
+
+  it("cada acta pagada: amortización − abono = 0", () => {
+    // Acta → abono que la paga: el número del abono no es el del acta.
+    const pairs = [
+      ["01", "01"],
+      ["02", "02"],
+      ["03", "04"],
+      ["04", "05"],
+      ["05", "06"],
+    ];
+    for (const [act, payment] of pairs) {
+      const r = row("ACT", act);
+      expect([act, r.paidByNumber, r.amortization, row("PAYMENT", payment).value, r.owed]).toEqual([
+        act,
+        payment,
+        r.amortization,
+        r.amortization,
+        "0.00",
+      ]);
+    }
+  });
+
+  it("la especial: el abono paga la amortización (273.271), no el valor del acta (15.221.239)", () => {
+    expect(row("ACT", "04")).toMatchObject({ actValue: "15221239.00", fiduciary: "14947968.00", amortization: "273271.00", owed: "0.00" });
+    expect(row("PAYMENT", "05")).toMatchObject({ value: "273271.00", paidNumber: "04" });
+  });
+
+  it("el acta sin abono es lo que se le debe a la constructora; el abono sin acta es la entrega al fondo", () => {
+    expect(row("ACT", "06")).toMatchObject({ paidByNumber: null, owed: "44063696.00" });
+    expect(row("PAYMENT", "03")).toMatchObject({ paidNumber: null });
+    expect(figures.summary).toMatchObject({ owed: "44063696.00", balance: "955936304.00" });
+  });
+
+  it("con el mes de la fecha acta, el acta 03 (aprobada el 11/05) va en abril, como el cuadro", () => {
+    const byActDate = fundFiguresText(
+      fundFigures(
+        APRIL_MAY.map((m) => ({ ...m, rowDate: m.documentDate })),
+        "1000000000.00",
+      ),
+    );
+    expect(byActDate.rows.find((r) => r.type === "NORMAL" && r.number === "03").month).toBe("2026-04");
+    expect(byActDate.months.find((m) => m.month === "2026-04").actsValue).toBe("65782109.00");
+    expect(byActDate.months.find((m) => m.month === "2026-05").actsValue).toBe("114253345.00");
   });
 });

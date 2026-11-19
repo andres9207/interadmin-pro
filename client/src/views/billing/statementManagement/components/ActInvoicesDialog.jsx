@@ -11,7 +11,7 @@ import BaseDialog from 'ui-component/extended/BaseDialog';
 import DataTable from 'ui-component/extended/DataTable';
 import { fMoneyText } from 'utils/formatNumber';
 import { fDateOnly } from 'utils/formatTime';
-import { invoicePath } from 'utils/constants';
+import { statementManagementPath } from 'utils/constants';
 
 /**
  * Las facturas de un acta o de un extracto por aprobar (DEC-103): las de la
@@ -24,7 +24,7 @@ const COLUMNS = [
     id: 'number',
     label: 'Factura',
     render: (row) => (
-      <Link component={RouterLink} to={invoicePath(row.pvtId, row.invId)}>
+      <Link component={RouterLink} to={statementManagementPath(row.invId)}>
         {row.number}
       </Link>
     )

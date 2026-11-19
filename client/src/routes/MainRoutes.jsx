@@ -159,7 +159,12 @@ const MainRoutes = {
               children: [{ path: 'invoices/:invId', element: <InvoiceDetailPage /> }]
             },
             // Gerencia extractos (DEC-103): el fondo rotatorio de la obra o de cada etapa.
-            { path: 'statementManagement', element: <StatementManagementPage /> }
+            // Las facturas de un acta se abren encima, como en extractos.
+            {
+              path: 'statementManagement',
+              element: <StatementManagementPage />,
+              children: [{ path: 'invoices/:invId', element: <InvoiceDetailPage /> }]
+            }
           ]
         }
       ]

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Outlet } from 'react-router-dom';
 
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -33,6 +34,7 @@ import { useSocket } from 'socket/SocketProvider';
 import { showError, showSuccess } from 'services/ToastService';
 import { fMoneyText } from 'utils/formatNumber';
 import { ALL_WORKS } from 'utils/workScope';
+import { STATEMENT_MANAGEMENT_PATH } from 'utils/constants';
 
 /**
  * Gerencia extractos (DEC-103). Una pestaña por ámbito: la obra completa o,
@@ -73,6 +75,7 @@ export default function StatementManagementPage() {
   const [report, setReport] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
+  const outletContext = useMemo(() => ({ returnTo: STATEMENT_MANAGEMENT_PATH, refresh: reload }), [reload]);
 
   const [fundDialog, setFundDialog] = useState(null); // { fund } (null para crear)
   const [movementDialog, setMovementDialog] = useState(null); // { mode, extract?, movement? }
@@ -149,7 +152,7 @@ export default function StatementManagementPage() {
   const work = management?.work;
 
   return (
-    <MainCard title="Gerencia extractos">
+    <MainCard>
       {allWorks && (
         <Box sx={{ maxWidth: 420, mb: 2 }}>
           <SearchSelect value={pickedWork} onChange={setPickedWork} options={works} label="Obra" placeholder="Elige la obra" />
@@ -163,12 +166,6 @@ export default function StatementManagementPage() {
 
       {wrkId && management && (
         <Stack spacing={2}>
-          <Typography variant="body2" color="text.secondary">
-            {[`${work.code} — ${work.name}`, work.constructionCompany ? `Constructora: ${work.constructionCompany}` : null]
-              .filter(Boolean)
-              .join(' · ')}
-          </Typography>
-
           <Tabs value={tab ?? false} onChange={(_, value) => setTab(value)} variant="scrollable" allowScrollButtonsMobile>
             {management.scopes.map((s) => (
               <Tab
@@ -324,6 +321,8 @@ export default function StatementManagementPage() {
         onSaved={closeAndReload(setMovementDialog)}
       />
       <ActInvoicesDialog act={invoicesOf} onClose={() => setInvoicesOf(null)} />
+      {/* La factura elegida se abre encima (ruta hija, como en extractos); cerrar vuelve aquí. */}
+      <Outlet context={outletContext} />
       <ConfirmDialog
         open={Boolean(confirming)}
         onClose={() => setConfirming(null)}
