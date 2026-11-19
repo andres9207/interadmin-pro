@@ -318,9 +318,9 @@
     "semantic_hash": ""
   },
   "client/src/routes/MainRoutes.jsx": {
-    "mtime": 1795031879.0407882,
-    "seen": 1795043766.5889556,
-    "ast_hash": "3d4c1ad5d3097e7b868828b178321c11",
+    "mtime": 1795107498.1531334,
+    "seen": 1795125147.6778526,
+    "ast_hash": "8ff8db12e832168eaab1e71519fc02a3",
     "semantic_hash": ""
   },
   "client/src/routes/PrivateRoute.jsx": {
@@ -762,9 +762,9 @@
     "semantic_hash": ""
   },
   "client/src/utils/constants.js": {
-    "mtime": 1793307659.3227038,
-    "seen": 1793307840.8954155,
-    "ast_hash": "c282f87ee20ceedd6a835550713bfc0a",
+    "mtime": 1795107498.065654,
+    "seen": 1795125147.6779532,
+    "ast_hash": "f2b5f83d3f9c6958aed3b4c9a70e36b7",
     "semantic_hash": ""
   },
   "client/src/utils/formatNumber.js": {
@@ -4260,15 +4260,15 @@
     "semantic_hash": ""
   },
   "client/src/views/billing/statementManagement/StatementManagementPage.jsx": {
-    "mtime": 1795042137.8177714,
-    "seen": 1795043766.5891252,
-    "ast_hash": "c39e87e60110b05045f71093c1353d1a",
+    "mtime": 1795107500.1065986,
+    "seen": 1795125147.6779954,
+    "ast_hash": "f6f38aa7d13804461aea225da81bdb4e",
     "semantic_hash": ""
   },
   "client/src/views/billing/statementManagement/components/ActInvoicesDialog.jsx": {
-    "mtime": 1795039232.5548458,
-    "seen": 1795043766.5891259,
-    "ast_hash": "5462b208a30dabb19f7307493cfc81fe",
+    "mtime": 1795107498.982534,
+    "seen": 1795125147.6779964,
+    "ast_hash": "9f59224c9e33d16550b2958d3b276c57",
     "semantic_hash": ""
   },
   "client/src/views/billing/statementManagement/components/FundDialog.jsx": {
@@ -4332,9 +4332,9 @@
     "semantic_hash": ""
   },
   "server/test/modules/billing/statementManagement/fundFigures.test.js": {
-    "mtime": 1795031535.5406325,
-    "seen": 1795043766.5896518,
-    "ast_hash": "b7410ac685aad33edfd08ee45917ca97",
+    "mtime": 1795106567.8612633,
+    "seen": 1795125147.6784868,
+    "ast_hash": "33a87f23666a60bb433077e7cd43c88b",
     "semantic_hash": ""
   },
   "server/test/modules/billing/statementManagement/statementManagement.service.test.js": {
