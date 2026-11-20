@@ -8,11 +8,13 @@ import { assertInScope } from "../../../common/services/workScope.service.js";
 import { runIdempotent } from "../../../common/services/idempotency.service.js";
 import { withLockedTransaction } from "../../../common/services/transaction.service.js";
 import { AUDIT_ENTITIES, AUDIT_OPERATIONS, diffFields, writeAudit } from "../../../common/services/audit.service.js";
-import { renderDocument } from "../../../common/services/export.service.js";
+import { renderDocument, renderExcelSheet } from "../../../common/services/export.service.js";
+import { drawFundSheet } from "./fundReportSheet.js";
 import { INVOICE_STATES } from "../invoices/invoiceTerms.js";
 import { workStatementInvoices } from "../invoices/invoices.service.js";
 import { statementsGlosses } from "../invoices/invoiceGlosses.service.js";
 import { FUND_MOVEMENT_TYPES, fundFigures, fundFiguresText, isAct } from "./fundFigures.js";
+import { stageInvoiceWhere } from "./statementActs.service.js";
 
 /**
  * Gerencia extractos (DEC-103). El ámbito es la obra y, si la tiene, una
@@ -103,6 +105,8 @@ const toMovement = (row) => ({
   withholding: moneyText(row.fmv_withholding),
   amortization: moneyText(row.fmv_amortization),
   paidId: row.fmv_paid_id,
+  // Especial escrita a mano: lo pagado por la fiducia no sale de facturas.
+  manual: row.fmv_type === FUND_MOVEMENT_TYPES.SPECIAL && row.fmv_value !== null,
   description: row.fmv_description,
   updatedAt: row.fmv_update_at,
   updatedByName: userFullName(row.updated_by_user),
@@ -145,6 +149,13 @@ const extractsOf = (invoices) => {
     const dates = extract.invoices.map((i) => i.date).sort();
     extract.firstDate = dates[0];
     extract.lastDate = dates[dates.length - 1];
+    // Con todas sus facturas aprobadas, el extracto ya está aprobado: la fecha de
+    // la última aprobación. Con alguna sin aprobar (o ninguna viva), no hay.
+    const approvals = live
+      .map((i) => i.approvalDate)
+      .filter(Boolean)
+      .sort();
+    extract.approvalDate = live.length > 0 && extract.registered === 0 && approvals.length > 0 ? approvals[approvals.length - 1] : null;
   }
   return byKey;
 };
@@ -224,16 +235,18 @@ const scopeFigures = (data, wksId) => {
   const movements = data.movements.filter((m) => m.wksId === wksId);
   const actKeys = new Set(movements.filter((m) => isAct(m.type)).map((m) => textKey(m.number)));
   // El acta toma su valor de las facturas de su extracto; si no queda ninguna, 0.
-  const valued = movements.map((m) =>
-    isAct(m.type)
+  const valued = movements.map((m) => {
+    // La especial escrita a mano conserva lo pagado por la fiducia y va en el mes de su fecha acta.
+    if (m.manual) return { ...m, rowDate: m.documentDate };
+    return isAct(m.type)
       ? {
           ...m,
           value: extracts.get(textKey(m.number))?.total ?? "0.00",
           // El acta va en el mes de su factura más reciente (decisión del usuario, 2026-11-18).
           rowDate: extracts.get(textKey(m.number))?.lastDate ?? null,
         }
-      : m,
-  );
+      : m;
+  });
   const figures = fundFiguresText(fundFigures(valued, fund?.limit ?? null));
   const pending = [...extracts.entries()]
     .filter(([key]) => !actKeys.has(key))
@@ -244,6 +257,7 @@ const scopeFigures = (data, wksId) => {
       total: e.total,
       firstDate: e.firstDate,
       lastDate: e.lastDate,
+      approvalDate: e.approvalDate,
       month: dateOnlyText(e.lastDate).slice(0, 7),
       invoices: e.invoices.map(toActInvoice),
     }))
@@ -361,6 +375,7 @@ export const getScopeReport = async ({ wrkId, wksId, scope }) => {
       extractsValue: moneyText(decimal(figures.summary.actsValue).plus(sumMoney(pending.map((p) => decimal(p.total))))),
     },
     months: monthsWithPending(figures.months, pending),
+    nextPaymentNumber: nextPaymentNumber(movements.filter((r) => r.type === FUND_MOVEMENT_TYPES.PAYMENT).map((r) => r.number)),
     movements,
     pending,
   };
@@ -638,21 +653,45 @@ const movementDates = (input) => {
   return { documentDate, approvalDate };
 };
 
-/** Lo de cada tipo: lo que no le aplica queda en NULL (CHECK de la migración 0131). */
-const movementValues = (type, input) => {
+const requiredMoney = (value, message) => {
+  const amount = toMoney(value);
+  if (amount === null) throw httpError(400, message);
+  return amount;
+};
+
+/**
+ * Los importes de cada tipo; lo que no le aplica queda en NULL (CHECK de la
+ * migración 0131). El abono, su valor. La especial, la retención y la
+ * amortización; si es escrita a mano (`manual`), lo pagado por la fiducia y
+ * una amortización igual a la retención. La de un extracto toma lo pagado de
+ * sus facturas.
+ */
+const amountsOf = (type, input, manual) => {
+  if (type === FUND_MOVEMENT_TYPES.PAYMENT) {
+    return { value: requiredMoney(input.value, "El valor del abono es requerido."), withholding: null, amortization: null };
+  }
+  if (type !== FUND_MOVEMENT_TYPES.SPECIAL) return { value: null, withholding: null, amortization: null };
+  const withholding = requiredMoney(input.withholding, "La retención de pagos especiales es requerida.");
+  // Escrita a mano, al fondo se le amortiza lo mismo que se retiene (decisión del usuario, 2026-11-20):
+  // un solo valor. La de un extracto escribe los dos (pueden ser distintos).
+  if (manual)
+    return { value: requiredMoney(input.value, "Lo pagado por la fiducia es requerido."), withholding, amortization: withholding };
+  return { value: null, withholding, amortization: requiredMoney(input.amortization, "La amortización al fondo es requerida.") };
+};
+
+/**
+ * Las columnas de un acta o un abono. `manual`: acta especial escrita a mano
+ * (desde "Nuevo abono / especial"), con lo pagado por la fiducia en
+ * `fmv_value`; la de un extracto lo toma de sus facturas (NULL).
+ */
+const movementValues = (type, input, { manual = false } = {}) => {
   if (!Object.values(FUND_MOVEMENT_TYPES).includes(type)) throw httpError(400, "El tipo debe ser acta, acta especial o abono.");
+  // El número del abono lo asigna el servidor al crearlo (consecutivo del ámbito).
   const number = text(input.number);
-  if (!number)
-    throw httpError(400, type === FUND_MOVEMENT_TYPES.PAYMENT ? "El número del abono es requerido." : "El extracto del acta es requerido.");
-  const { documentDate, approvalDate } = movementDates(input);
   const payment = type === FUND_MOVEMENT_TYPES.PAYMENT;
-  const special = type === FUND_MOVEMENT_TYPES.SPECIAL;
-  const value = payment ? toMoney(input.value) : null;
-  if (payment && value === null) throw httpError(400, "El valor del abono es requerido.");
-  const withholding = special ? toMoney(input.withholding) : null;
-  const amortization = special ? toMoney(input.amortization) : null;
-  if (special && withholding === null) throw httpError(400, "La retención de pagos especiales es requerida.");
-  if (special && amortization === null) throw httpError(400, "La amortización al fondo es requerida.");
+  if (!number && !payment) throw httpError(400, "El extracto del acta es requerido.");
+  const { documentDate, approvalDate } = movementDates(input);
+  const { value, withholding, amortization } = amountsOf(type, input, manual);
   return {
     fmv_type: type,
     fmv_number: number,
@@ -668,6 +707,25 @@ const movementValues = (type, input) => {
 
 const numberGroup = (type) =>
   type === FUND_MOVEMENT_TYPES.PAYMENT ? { fmv_type: FUND_MOVEMENT_TYPES.PAYMENT } : { fmv_type: { not: FUND_MOVEMENT_TYPES.PAYMENT } };
+
+/**
+ * El siguiente número de abono del ámbito: el mayor número entero de sus
+ * abonos vivos + 1, con dos cifras como el cuadro de Intervé ("01", "02"…).
+ * Un número que no sea entero (escrito a mano antes) no cuenta.
+ */
+export const nextPaymentNumber = (numbers) => {
+  const max = numbers.filter((n) => /^\d+$/.test(String(n ?? "").trim())).reduce((acc, n) => Math.max(acc, Number.parseInt(n, 10)), 0);
+  return String(max + 1).padStart(2, "0");
+};
+
+// Bajo el bloqueo de la obra: dos abonos a la vez no toman el mismo número.
+const assignPaymentNumber = async (tx, { wrkId, wksId }) => {
+  const rows = await tx.tbl_fund_movements.findMany({
+    where: { wrk_id: wrkId, wks_id: wksId, fmv_type: FUND_MOVEMENT_TYPES.PAYMENT, ...LIVE },
+    select: { fmv_number: true },
+  });
+  return nextPaymentNumber(rows.map((r) => r.fmv_number));
+};
 
 const assertUniqueNumber = async (tx, { wrkId, wksId, type, number, excludeId = null }) => {
   const duplicate = await tx.tbl_fund_movements.findFirst({
@@ -688,15 +746,6 @@ const assertUniqueNumber = async (tx, { wrkId, wksId, type, number, excludeId = 
     );
   }
 };
-
-/** Las facturas de la etapa (o sin etapa): la simple, la suya; la de contrato, la de su contrato. */
-const stageInvoiceWhere = (wksId) =>
-  wksId
-    ? { OR: [{ wks_id: wksId }, { tbl_contracts: { is: { wks_id: wksId } } }] }
-    : {
-        wks_id: null,
-        OR: [{ ctr_id: null }, { tbl_contracts: { is: { wks_id: null } } }],
-      };
 
 /** Un acta necesita facturas en su extracto (sin las anuladas), en su obra y su etapa. */
 const assertExtractHasInvoices = async (tx, { wrkId, wksId, number }) => {
@@ -776,30 +825,35 @@ const IDEMPOTENT_MOVEMENT = {
 const messageOf = (type, action) =>
   type === FUND_MOVEMENT_TYPES.PAYMENT ? `Abono ${action} correctamente` : `Acta ${action.replace(/o$/, "a")} correctamente`;
 
-const createMovement = ({ wrkId, wksId, values, useBy, ctx, idempotencyKey }) =>
+const createMovement = ({ wrkId, wksId, values: input, useBy, ctx, idempotencyKey }) =>
   runIdempotent({
     target: IDEMPOTENT_MOVEMENT,
     key: idempotencyKey,
     ownerId: useBy,
-    payload: { wrkId, wksId, ...movementAuditable(values) },
+    payload: { wrkId, wksId, ...movementAuditable(input) },
     execute: (idempotencyData) =>
       withLockedTransaction({ OBRA: wrkId }, async (tx) => {
+        let values = input;
         await assertLiveWork(tx, wrkId);
         await assertStage(tx, wrkId, wksId);
         const type = values.fmv_type;
-        await assertUniqueNumber(tx, {
-          wrkId,
-          wksId,
-          type,
-          number: values.fmv_number,
-        });
-        if (isAct(type))
-          await assertExtractHasInvoices(tx, {
+        if (type === FUND_MOVEMENT_TYPES.PAYMENT) values = { ...values, fmv_number: await assignPaymentNumber(tx, { wrkId, wksId }) };
+        else
+          await assertUniqueNumber(tx, {
             wrkId,
             wksId,
+            type,
             number: values.fmv_number,
           });
-        else {
+        // El acta sale de las facturas de su extracto; la especial escrita a mano, no. Solo el abono exige el fondo.
+        if (isAct(type)) {
+          if (values.fmv_value === null)
+            await assertExtractHasInvoices(tx, {
+              wrkId,
+              wksId,
+              number: values.fmv_number,
+            });
+        } else {
           await assertFundExists(tx, { wrkId, wksId });
           if (values.fmv_paid_id)
             await assertPayable(tx, {
@@ -840,6 +894,7 @@ const immutableMovement = async (fmvId, scope) => {
       wks_id: true,
       fmv_type: true,
       fmv_number: true,
+      fmv_value: true,
       sta_id: true,
     },
   });
@@ -850,6 +905,7 @@ const immutableMovement = async (fmvId, scope) => {
     wksId: row.wks_id,
     type: row.fmv_type,
     number: row.fmv_number,
+    manual: row.fmv_type === FUND_MOVEMENT_TYPES.SPECIAL && row.fmv_value !== null,
   };
 };
 
@@ -904,7 +960,9 @@ export const saveFundMovement = async ({ fmvId, input, useBy, scope, ctx = { use
   if (isNewId(fmvId)) {
     const wrkId = Number(input.wrkId);
     assertInScope(scope, wrkId, WORK_NOT_FOUND);
-    const values = movementValues(input.type, input);
+    // Una especial con lo pagado por la fiducia escrito es la escrita a mano: no necesita facturas.
+    const manual = input.type === FUND_MOVEMENT_TYPES.SPECIAL && text(input.value) !== "";
+    const values = movementValues(input.type, input, { manual });
     return createMovement({
       wrkId,
       wksId: stageOf(input.wksId),
@@ -916,12 +974,23 @@ export const saveFundMovement = async ({ fmvId, input, useBy, scope, ctx = { use
   }
 
   const current = await immutableMovement(fmvId, scope);
-  // El extracto de un acta no cambia: es lo que la une a sus facturas.
-  const values = movementValues(current.type, isAct(current.type) ? { ...input, number: current.number } : input);
+  // El número no cambia: el extracto une el acta a sus facturas, y el del abono es su consecutivo.
+  // Un acta pasa de A a E (o al revés) al editarla; un abono sigue siendo abono, y la especial
+  // escrita a mano sigue siendo especial: no tiene facturas de las que salga un acta A.
+  const type = !current.manual && isAct(current.type) && isAct(input.type) ? input.type : current.type;
+  const values = movementValues(type, { ...input, number: current.number }, { manual: current.manual });
   return withLockedTransaction(
     { OBRA: current.wrkId },
     async (tx) => {
       const before = await findLockedMovement(tx, fmvId);
+      if (values.fmv_type !== before.fmv_type) {
+        const payment = await paymentOfAct(tx, before.fmv_id);
+        if (payment)
+          throw httpError(
+            409,
+            `El acta ${before.fmv_number} la paga el abono ${payment.fmv_number}: elimina el abono para cambiar su tipo.`,
+          );
+      }
       const changes = diffFields(movementAuditable(before), movementAuditable(values), MOVEMENT_AUDITED);
       if (changes.length > 0) {
         const scopeOf = { wrkId: before.wrk_id, wksId: before.wks_id };
@@ -1105,6 +1174,14 @@ export const exportScopeReport = async ({ wrkId, wksId, format, scope }) => {
     glossText: glossText(r.glosses),
   }));
   const workName = [work.code, work.name].filter(Boolean).join(" — ");
+  // En Excel, el cuadro igual que la tabla de la pantalla; en PDF, por secciones.
+  if (format === "xlsx")
+    return renderExcelSheet({
+      title: "Gerencia extractos — control de pagos",
+      heading: `Obra: ${workName} · ${report.scope.name}`,
+      sheetTitle: "Control de pagos",
+      draw: (sheet) => drawFundSheet(sheet, report),
+    });
   return renderDocument({
     format,
     title: "Gerencia extractos — control de pagos",

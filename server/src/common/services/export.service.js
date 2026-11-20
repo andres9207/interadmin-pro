@@ -473,8 +473,12 @@ const drawFields = (doc, fields) => {
   doc.fontSize(8.5);
   for (let i = 0; i < fields.length; i += 2) {
     const pair = fields.slice(i, i + 2).map((field) => ({ label: field.label, text: pdfText(fieldColumn(field), null) || "—" }));
-    const height =
-      Math.max(...pair.map((p) => doc.font("Helvetica").heightOfString(p.text, { width: pairWidth - labelWidth - 8 }))) + 4;
+    // El renglón mide lo más alto de sus etiquetas y valores: una etiqueta larga baja a otra línea.
+    const heights = pair.flatMap((p) => [
+      doc.font("Helvetica-Bold").heightOfString(p.label, { width: labelWidth - 4 }),
+      doc.font("Helvetica").heightOfString(p.text, { width: pairWidth - labelWidth - 8 }),
+    ]);
+    const height = Math.max(...heights) + 4;
     ensureRoom(doc, height);
     const y = doc.y;
     pair.forEach((p, j) => {
@@ -577,6 +581,26 @@ export const renderExport = ({ format, title, heading = null, filters = [], colu
  */
 export const renderDocument = ({ format, title, heading = null, lines = [], sections }) =>
   renderWith(format, { xlsx: buildExcelDocument, pdf: buildPdfDocument }, { title, heading, lines, sections });
+
+/**
+ * Excel de una sola hoja que dibuja el módulo con `draw(sheet)`, para un
+ * reporte que debe verse igual que una tabla de la pantalla (el control de
+ * pagos de Gerencia extractos, DEC-103). Lleva el logo, el título, `heading`,
+ * `lines` y el pie, como los demás. `draw` escribe con `sheet.addRow`, para
+ * que el pie quede debajo.
+ */
+export const renderExcelSheet = async ({ title, heading = null, lines = [], sheetTitle = title, draw }) => {
+  const workbook = new ExcelJS.Workbook();
+  workbook.created = new Date();
+  const sheet = workbook.addWorksheet(sheetName(workbook, sheetTitle));
+  addSheetHeading(sheet, title, lines, undefined, heading);
+  draw(sheet);
+  addSheetFooter(sheet);
+  return { buffer: Buffer.from(await workbook.xlsx.writeBuffer()), ...EXPORT_FORMATS.xlsx };
+};
+
+/** Importe ya redondeado (texto de money.utils) como número de celda; vacío → null. Solo presenta. */
+export const excelMoney = (text) => (text === null || text === undefined || text === "" ? null : Number(text));
 
 /** Envía el archivo del reporte (controller). El nombre lo pone el cliente. */
 export const sendExport = (res, file) => {

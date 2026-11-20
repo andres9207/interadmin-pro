@@ -52,7 +52,13 @@ const ctx = { useId: 9, ip: "1.1.1.1" };
 const OWN = Object.freeze({ all: false, wrkId: 8 });
 const OTHER = Object.freeze({ all: false, wrkId: 5 });
 const auditRows = () => prismaMock.tbl_audit_log.createMany.mock.calls.flatMap((c) => c[0].data);
-const lockedTables = () => prismaMock.$queryRaw.mock.calls.map((call) => call.slice(1).map((v) => v?.strings?.join("") ?? "").join(" "));
+const lockedTables = () =>
+  prismaMock.$queryRaw.mock.calls.map((call) =>
+    call
+      .slice(1)
+      .map((v) => v?.strings?.join("") ?? "")
+      .join(" "),
+  );
 
 const invoice = (overrides = {}) => ({
   invId: 1,
@@ -89,9 +95,25 @@ const movementRow = (overrides = {}) => ({
   ...overrides,
 });
 
-const actInput = (overrides = {}) => ({ wrkId: 8, wksId: 4, type: "NORMAL", number: " 25 ", documentDate: "2026-10-05", approvalDate: "2026-10-07", ...overrides });
+const actInput = (overrides = {}) => ({
+  wrkId: 8,
+  wksId: 4,
+  type: "NORMAL",
+  number: " 25 ",
+  documentDate: "2026-10-05",
+  approvalDate: "2026-10-07",
+  ...overrides,
+});
 const paymentInput = (overrides = {}) =>
-  actInput({ type: "PAYMENT", number: "20", documentDate: "2026-10-14", approvalDate: "2026-10-14", value: "100", paidId: 88, ...overrides });
+  actInput({
+    type: "PAYMENT",
+    number: "20",
+    documentDate: "2026-10-14",
+    approvalDate: "2026-10-14",
+    value: "100",
+    paidId: 88,
+    ...overrides,
+  });
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -131,8 +153,27 @@ describe("cuadro por obra y etapa", () => {
     expect(report.pending[0].invoices).toHaveLength(3);
   });
 
+  it("el extracto por aprobar trae la fecha de aprobación de sus facturas solo si todas están aprobadas", async () => {
+    state.invoices = [
+      invoice({ invId: 1, statement: "25", approvalDate: "2026-10-20" }),
+      invoice({ invId: 2, statement: "25", approvalDate: "2026-10-28" }),
+      // La anulada no cuenta.
+      invoice({ invId: 3, statement: "25", state: "CANCELLED", approvalDate: "2026-11-30" }),
+      invoice({ invId: 4, statement: "26", approvalDate: "2026-10-20" }),
+      invoice({ invId: 5, statement: "26", state: "REGISTERED", approvalDate: null }),
+    ];
+    const report = await service.getScopeReport({ wrkId: 8, wksId: 4, scope: OWN });
+    expect(report.pending.map((p) => [p.number, p.approvalDate])).toEqual([
+      ["25", "2026-10-28"],
+      ["26", null],
+    ]);
+  });
+
   it("el acta aprobada toma su valor de sus facturas (sin distinguir mayúsculas) y sale de los pendientes", async () => {
-    state.invoices = [invoice({ statement: "ext-25", total: "288980846.00" }), invoice({ invId: 2, statement: "EXT-25", total: null, value: "10.00" })];
+    state.invoices = [
+      invoice({ statement: "ext-25", total: "288980846.00" }),
+      invoice({ invId: 2, statement: "EXT-25", total: null, value: "10.00" }),
+    ];
     state.movements = [movementRow({ fmv_number: "Ext-25" })];
     state.funds = [{ ...state.fund, updated_by_user: null }];
     const report = await service.getScopeReport({ wrkId: 8, wksId: 4, scope: OWN });
@@ -157,9 +198,22 @@ describe("cuadro por obra y etapa", () => {
       ["27", "2026-11"],
     ]);
     expect(report.months).toEqual([
-      expect.objectContaining({ month: "2026-10", actsValue: "100.00", pendingCount: 0, extractsValue: "100.00", closingBalance: "-100.00" }),
+      expect.objectContaining({
+        month: "2026-10",
+        actsValue: "100.00",
+        pendingCount: 0,
+        extractsValue: "100.00",
+        closingBalance: "-100.00",
+      }),
       // Noviembre solo tiene extractos por aprobar: cierra con el saldo de octubre.
-      expect.objectContaining({ month: "2026-11", actsValue: "0.00", pendingCount: 2, pendingValue: "100.00", extractsValue: "100.00", closingBalance: "-100.00" }),
+      expect.objectContaining({
+        month: "2026-11",
+        actsValue: "0.00",
+        pendingCount: 2,
+        pendingValue: "100.00",
+        extractsValue: "100.00",
+        closingBalance: "-100.00",
+      }),
     ]);
     expect(report.summary).toMatchObject({ actsValue: "100.00", pendingValue: "100.00", extractsValue: "200.00" });
   });
@@ -188,24 +242,30 @@ describe("cuadro por obra y etapa", () => {
 describe("fondo", () => {
   it("crea el fondo de una etapa bloqueando la obra, con la clave y bitácora", async () => {
     await expect(
-      service.saveFund({ rfdId: 0, input: { wrkId: 8, wksId: 4, limit: "1000000000" }, useBy: 9, scope: OWN, ctx, idempotencyKey: KEY })
+      service.saveFund({ rfdId: 0, input: { wrkId: 8, wksId: 4, limit: "1000000000" }, useBy: 9, scope: OWN, ctx, idempotencyKey: KEY }),
     ).resolves.toEqual({ message: "Fondo rotatorio creado correctamente", rfdId: 70 });
     expect(lockedTables()[0]).toMatch(/tbl_works/);
     expect(prismaMock.tbl_rotating_funds.create.mock.calls[0][0].data).toMatchObject({ wrk_id: 8, wks_id: 4, rfd_idempotency_key: KEY });
-    expect(auditRows().find((r) => r.aud_field === "rfd_limit")).toMatchObject({ aud_entity: "FONDO_ROTATORIO", aud_new_value: "1000000000.00" });
+    expect(auditRows().find((r) => r.aud_field === "rfd_limit")).toMatchObject({
+      aud_entity: "FONDO_ROTATORIO",
+      aud_new_value: "1000000000.00",
+    });
   });
 
   it("una etapa con fondo no recibe otro (409)", async () => {
     state.scopeFund = { rfd_id: 71 };
     await expect(
-      service.saveFund({ rfdId: 0, input: { wrkId: 8, wksId: 4, limit: "1" }, useBy: 9, scope: OWN, ctx, idempotencyKey: KEY })
+      service.saveFund({ rfdId: 0, input: { wrkId: 8, wksId: 4, limit: "1" }, useBy: 9, scope: OWN, ctx, idempotencyKey: KEY }),
     ).rejects.toMatchObject({ statusCode: 409, message: "La etapa ya tiene un fondo rotatorio." });
   });
 
   it("cambiar el tope bloquea la obra y el fondo y queda en la bitácora", async () => {
     await service.saveFund({ rfdId: 70, input: { limit: "2000000000" }, useBy: 9, scope: OWN, ctx });
     expect(lockedTables().join(" ")).toMatch(/tbl_works.*tbl_rotating_funds/);
-    expect(auditRows().find((r) => r.aud_field === "rfd_limit")).toMatchObject({ aud_old_value: "1000000000.00", aud_new_value: "2000000000.00" });
+    expect(auditRows().find((r) => r.aud_field === "rfd_limit")).toMatchObject({
+      aud_old_value: "1000000000.00",
+      aud_new_value: "2000000000.00",
+    });
   });
 
   it("un fondo con abonos no se elimina (409); sin abonos, sí", async () => {
@@ -219,7 +279,9 @@ describe("fondo", () => {
 
 describe("aprobar actas y registrar abonos", () => {
   it("aprueba un extracto como acta normal, sin valor propio, bloqueando la obra", async () => {
-    await expect(service.saveFundMovement({ fmvId: 0, input: actInput(), useBy: 9, scope: OWN, ctx, idempotencyKey: KEY })).resolves.toEqual({
+    await expect(
+      service.saveFundMovement({ fmvId: 0, input: actInput(), useBy: 9, scope: OWN, ctx, idempotencyKey: KEY }),
+    ).resolves.toEqual({
       message: "Acta creada correctamente",
       fmvId: 90,
     });
@@ -232,26 +294,108 @@ describe("aprobar actas y registrar abonos", () => {
       fmv_value: null,
       fmv_withholding: null,
     });
-    expect(prismaMock.tbl_invoices.count.mock.calls[0][0].where).toMatchObject({ wrk_id: 8, inv_statement: "25", inv_state: { not: "CANCELLED" } });
+    expect(prismaMock.tbl_invoices.count.mock.calls[0][0].where).toMatchObject({
+      wrk_id: 8,
+      inv_statement: "25",
+      inv_state: { not: "CANCELLED" },
+    });
   });
 
   it("un extracto sin facturas en la etapa no es un acta (409)", async () => {
     state.extractInvoices = 0;
-    await expect(service.saveFundMovement({ fmvId: 0, input: actInput(), useBy: 9, scope: OWN, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+    await expect(
+      service.saveFundMovement({ fmvId: 0, input: actInput(), useBy: 9, scope: OWN, ctx, idempotencyKey: KEY }),
+    ).rejects.toMatchObject({
       statusCode: 409,
     });
     expect(prismaMock.tbl_fund_movements.create).not.toHaveBeenCalled();
   });
 
+  it("la especial escrita a mano: sin facturas ni fondo, con lo pagado por la fiducia y amortización = retención", async () => {
+    state.extractInvoices = 0;
+    await service.saveFundMovement({
+      fmvId: 0,
+      input: actInput({ type: "SPECIAL", number: "04", value: "14947968", withholding: "273271", amortization: "999" }),
+      useBy: 9,
+      scope: OWN,
+      ctx,
+      idempotencyKey: KEY,
+    });
+    expect(prismaMock.tbl_invoices.count).not.toHaveBeenCalled();
+    expect(prismaMock.tbl_rotating_funds.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.tbl_fund_movements.create.mock.calls[0][0].data).toMatchObject({
+      fmv_type: "SPECIAL",
+      fmv_number: "04",
+      fmv_value: expect.anything(),
+      fmv_withholding: expect.anything(),
+      fmv_amortization: expect.anything(),
+    });
+    expect(String(prismaMock.tbl_fund_movements.create.mock.calls[0][0].data.fmv_value)).toBe("14947968");
+    // Escrita a mano, la amortización es la retención: un solo valor.
+    expect(String(prismaMock.tbl_fund_movements.create.mock.calls[0][0].data.fmv_amortization)).toBe("273271");
+  });
+
+  it("en el cuadro, la especial escrita a mano vale lo pagado + la retención y va en el mes de su fecha acta", async () => {
+    state.movements = [
+      movementRow({
+        fmv_type: "SPECIAL",
+        fmv_number: "04",
+        fmv_document_date: new Date("2026-05-05T00:00:00Z"),
+        fmv_approval_date: new Date("2026-06-11T00:00:00Z"),
+        fmv_value: "14947968.00",
+        fmv_withholding: "273271.00",
+        fmv_amortization: "273271.00",
+      }),
+    ];
+    const report = await service.getScopeReport({ wrkId: 8, wksId: 4, scope: OWN });
+    expect(report.movements[0]).toMatchObject({
+      manual: true,
+      month: "2026-05",
+      fiduciary: "14947968.00",
+      actValue: "15221239.00",
+      amortization: "273271.00",
+      invoices: [],
+    });
+  });
+
+  it("al editar la especial escrita a mano sigue siendo especial y conserva lo pagado escrito", async () => {
+    state.movement = movementRow({
+      fmv_type: "SPECIAL",
+      fmv_number: "04",
+      fmv_value: "100.00",
+      fmv_withholding: "1.00",
+      fmv_amortization: "1.00",
+    });
+    await service.saveFundMovement({
+      fmvId: 90,
+      input: actInput({ type: "NORMAL", value: "200", withholding: "2", amortization: "2" }),
+      useBy: 9,
+      scope: OWN,
+      ctx,
+    });
+    const { data } = prismaMock.tbl_fund_movements.update.mock.calls[0][0];
+    expect(data).toMatchObject({ fmv_type: "SPECIAL", fmv_number: "04" });
+    expect(String(data.fmv_value)).toBe("200");
+  });
+
   it("el acta especial exige la retención y la amortización (400)", async () => {
     await expect(
-      service.saveFundMovement({ fmvId: 0, input: actInput({ type: "SPECIAL", withholding: "1113231" }), useBy: 9, scope: OWN, ctx, idempotencyKey: KEY })
+      service.saveFundMovement({
+        fmvId: 0,
+        input: actInput({ type: "SPECIAL", withholding: "1113231" }),
+        useBy: 9,
+        scope: OWN,
+        ctx,
+        idempotencyKey: KEY,
+      }),
     ).rejects.toMatchObject({ statusCode: 400, message: "La amortización al fondo es requerida." });
   });
 
   it("un extracto ya aprobado no se aprueba otra vez (409)", async () => {
     state.duplicateNumber = { fmv_id: 91 };
-    await expect(service.saveFundMovement({ fmvId: 0, input: actInput(), useBy: 9, scope: OWN, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+    await expect(
+      service.saveFundMovement({ fmvId: 0, input: actInput(), useBy: 9, scope: OWN, ctx, idempotencyKey: KEY }),
+    ).rejects.toMatchObject({
       statusCode: 409,
       message: "El extracto 25 ya es un acta aprobada aquí.",
     });
@@ -259,7 +403,7 @@ describe("aprobar actas y registrar abonos", () => {
 
   it("sin fondo no hay abonos (409)", async () => {
     await expect(
-      service.saveFundMovement({ fmvId: 0, input: paymentInput({ paidId: null }), useBy: 9, scope: OWN, ctx, idempotencyKey: KEY })
+      service.saveFundMovement({ fmvId: 0, input: paymentInput({ paidId: null }), useBy: 9, scope: OWN, ctx, idempotencyKey: KEY }),
     ).rejects.toMatchObject({ statusCode: 409, message: "Para registrar abonos, primero crea el fondo rotatorio de esta obra o etapa." });
   });
 
@@ -268,32 +412,93 @@ describe("aprobar actas y registrar abonos", () => {
     state.act = { wrk_id: 8, wks_id: 4, fmv_type: "NORMAL", fmv_number: "25", fmv_amortization: null };
     state.invoices = [invoice({ total: "60.00" }), invoice({ invId: 2, total: "40.00" }), invoice({ invId: 3, wksId: 9, total: "500.00" })];
     await expect(
-      service.saveFundMovement({ fmvId: 0, input: paymentInput({ value: "100.01" }), useBy: 9, scope: OWN, ctx, idempotencyKey: KEY })
+      service.saveFundMovement({ fmvId: 0, input: paymentInput({ value: "100.01" }), useBy: 9, scope: OWN, ctx, idempotencyKey: KEY }),
     ).rejects.toMatchObject({ statusCode: 400, message: "El abono supera lo que el acta 25 amortiza al fondo (100.00)." });
     await service.saveFundMovement({ fmvId: 0, input: paymentInput({ value: "100" }), useBy: 9, scope: OWN, ctx, idempotencyKey: KEY });
     expect(prismaMock.tbl_fund_movements.create.mock.calls[0][0].data).toMatchObject({ fmv_type: "PAYMENT", fmv_paid_id: 88 });
+  });
+
+  it("el número del abono es el consecutivo del ámbito: lo asigna el servidor e ignora el escrito", async () => {
+    state.scopeFund = { rfd_id: 70 };
+    // Los abonos vivos de la etapa (el mock no filtra: el service pide solo esos). Un número no entero no cuenta.
+    state.movements = [movementRow({ fmv_type: "PAYMENT", fmv_number: "05" }), movementRow({ fmv_type: "PAYMENT", fmv_number: "Inicial" })];
+    await service.saveFundMovement({
+      fmvId: 0,
+      input: paymentInput({ number: "20", paidId: null }),
+      useBy: 9,
+      scope: OWN,
+      ctx,
+      idempotencyKey: KEY,
+    });
+    expect(prismaMock.tbl_fund_movements.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ wrk_id: 8, wks_id: 4, fmv_type: "PAYMENT" }) }),
+    );
+    expect(prismaMock.tbl_fund_movements.create.mock.calls[0][0].data).toMatchObject({ fmv_type: "PAYMENT", fmv_number: "06" });
+  });
+
+  it("el siguiente número: el mayor entero + 1, con dos cifras", () => {
+    expect(service.nextPaymentNumber([])).toBe("01");
+    expect(service.nextPaymentNumber(["01", "2", " 09 ", "X-3", null])).toBe("10");
+    expect(service.nextPaymentNumber(["120"])).toBe("121");
+  });
+
+  it("al editar un abono, su número no cambia", async () => {
+    state.movement = movementRow({ fmv_type: "PAYMENT", fmv_number: "03", fmv_value: "100.00" });
+    await service.saveFundMovement({ fmvId: 90, input: paymentInput({ number: "99", paidId: null }), useBy: 9, scope: OWN, ctx });
+    expect(prismaMock.tbl_fund_movements.update.mock.calls[0][0].data).toMatchObject({ fmv_number: "03" });
   });
 
   it("un acta que ya paga otro abono no se paga dos veces (409)", async () => {
     state.scopeFund = { rfd_id: 70 };
     state.act = { wrk_id: 8, wks_id: 4, fmv_type: "SPECIAL", fmv_number: "27", fmv_amortization: "13858108.00" };
     state.paymentOfAct = { fmv_number: "19" };
-    await expect(service.saveFundMovement({ fmvId: 0, input: paymentInput(), useBy: 9, scope: OWN, ctx, idempotencyKey: KEY })).rejects.toMatchObject({
+    await expect(
+      service.saveFundMovement({ fmvId: 0, input: paymentInput(), useBy: 9, scope: OWN, ctx, idempotencyKey: KEY }),
+    ).rejects.toMatchObject({
       statusCode: 409,
       message: "El acta 27 ya la paga el abono 19.",
     });
   });
 
+  it("al editar, un acta A pasa a E (con retención y amortización) si ningún abono la paga; pagada, 409", async () => {
+    const special = actInput({ type: "SPECIAL", withholding: "1000", amortization: "500" });
+    state.paymentOfAct = { fmv_number: "07" };
+    await expect(service.saveFundMovement({ fmvId: 90, input: special, useBy: 9, scope: OWN, ctx })).rejects.toMatchObject({
+      statusCode: 409,
+      message: "El acta 25 la paga el abono 07: elimina el abono para cambiar su tipo.",
+    });
+    expect(prismaMock.tbl_fund_movements.update).not.toHaveBeenCalled();
+    state.paymentOfAct = null;
+    await service.saveFundMovement({ fmvId: 90, input: special, useBy: 9, scope: OWN, ctx });
+    expect(prismaMock.tbl_fund_movements.update.mock.calls[0][0].data).toMatchObject({ fmv_type: "SPECIAL", fmv_number: "25" });
+  });
+
   it("al editar un acta, el tipo y el extracto son los guardados", async () => {
-    await service.saveFundMovement({ fmvId: 90, input: actInput({ type: "PAYMENT", number: "99", approvalDate: "2026-10-08" }), useBy: 9, scope: OWN, ctx });
-    expect(prismaMock.tbl_fund_movements.update.mock.calls[0][0].data).toMatchObject({ fmv_type: "NORMAL", fmv_number: "25", fmv_value: null });
+    await service.saveFundMovement({
+      fmvId: 90,
+      input: actInput({ type: "PAYMENT", number: "99", approvalDate: "2026-10-08" }),
+      useBy: 9,
+      scope: OWN,
+      ctx,
+    });
+    expect(prismaMock.tbl_fund_movements.update.mock.calls[0][0].data).toMatchObject({
+      fmv_type: "NORMAL",
+      fmv_number: "25",
+      fmv_value: null,
+    });
   });
 
   it("la amortización de un acta especial pagada no baja del abono (409)", async () => {
     state.movement = movementRow({ fmv_type: "SPECIAL", fmv_withholding: "1.00", fmv_amortization: "100.00" });
     state.paymentOfAct = { fmv_number: "20", fmv_value: "100.00" };
     await expect(
-      service.saveFundMovement({ fmvId: 90, input: actInput({ type: "SPECIAL", withholding: "1", amortization: "50" }), useBy: 9, scope: OWN, ctx })
+      service.saveFundMovement({
+        fmvId: 90,
+        input: actInput({ type: "SPECIAL", withholding: "1", amortization: "50" }),
+        useBy: 9,
+        scope: OWN,
+        ctx,
+      }),
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
@@ -301,7 +506,9 @@ describe("aprobar actas y registrar abonos", () => {
     state.paymentOfAct = { fmv_number: "20", fmv_value: "1.00" };
     await expect(service.deleteFundMovement({ fmvId: 90, useBy: 9, scope: OWN, ctx })).rejects.toMatchObject({ statusCode: 409 });
     state.paymentOfAct = null;
-    await expect(service.deleteFundMovement({ fmvId: 90, useBy: 9, scope: OWN, ctx })).resolves.toEqual({ message: "Acta eliminada correctamente" });
+    await expect(service.deleteFundMovement({ fmvId: 90, useBy: 9, scope: OWN, ctx })).resolves.toEqual({
+      message: "Acta eliminada correctamente",
+    });
     expect(prismaMock.tbl_fund_movements.update.mock.calls[0][0].data).toMatchObject({ sta_id: 3, fmv_delete_by: 9 });
   });
 

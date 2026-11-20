@@ -72,7 +72,7 @@ CREATE TABLE `tbl_fund_movements` (
   `fmv_number` varchar(20) NOT NULL COMMENT 'Acta: el texto del extracto de sus facturas. Abono: su número',
   `fmv_document_date` date NOT NULL COMMENT 'Fecha del documento de la constructora',
   `fmv_approval_date` date NOT NULL COMMENT 'Fecha de aprobación; decide el mes del movimiento',
-  `fmv_value` decimal(18,2) DEFAULT NULL COMMENT 'Solo abono: lo entregado. El valor del acta sale de sus facturas',
+  `fmv_value` decimal(18,2) DEFAULT NULL COMMENT 'Abono: lo entregado. Especial escrita a mano: lo pagado por la fiducia (sin facturas). NULL: el valor del acta sale de sus facturas',
   `fmv_withholding` decimal(18,2) DEFAULT NULL COMMENT 'Solo especial: retención que cobra la constructora',
   `fmv_amortization` decimal(18,2) DEFAULT NULL COMMENT 'Solo especial: lo que se amortiza al fondo',
   `fmv_paid_id` int DEFAULT NULL COMMENT 'Solo abono: el acta que paga',
@@ -98,7 +98,9 @@ CREATE TABLE `tbl_fund_movements` (
   INDEX `idx_fund_movements_stage` (`wks_id`, `wrk_id`),
   INDEX `idx_fund_movements_paid` (`fmv_paid_id`, `wrk_id`),
   CONSTRAINT `ck_fund_movements_type` CHECK (`fmv_type` IN ('NORMAL', 'SPECIAL', 'PAYMENT')),
-  CONSTRAINT `ck_fund_movements_value` CHECK ((`fmv_type` = 'PAYMENT') = (`fmv_value` IS NOT NULL)),
+  -- El abono siempre lleva su valor y la normal nunca (sale de sus facturas). La
+  -- especial, de sus facturas (NULL) o escrita a mano (lo pagado por la fiducia).
+  CONSTRAINT `ck_fund_movements_value` CHECK (`fmv_type` = 'SPECIAL' OR ((`fmv_type` = 'PAYMENT') = (`fmv_value` IS NOT NULL))),
   CONSTRAINT `ck_fund_movements_special_fields` CHECK (
     (`fmv_type` = 'SPECIAL' AND `fmv_withholding` IS NOT NULL AND `fmv_amortization` IS NOT NULL)
     OR (`fmv_type` <> 'SPECIAL' AND `fmv_withholding` IS NULL AND `fmv_amortization` IS NULL)

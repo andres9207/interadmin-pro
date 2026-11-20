@@ -51,11 +51,17 @@ const isAct = (row) => row.type !== 'PAYMENT';
 const negative = (value) => (Number(value) < 0 ? 'error.main' : undefined);
 const dateOf = (value) => String(value ?? '').slice(0, 10);
 
-const rowLabel = (row) => `${isAct(row) ? 'Acta' : 'Abono'} ${row.number}`;
+/** Número de un solo dígito con un cero a la izquierda: "2" → "02". */
+const padNumber = (value) => {
+  const text = String(value ?? '');
+  return /^\d$/.test(text) ? `0${text}` : text;
+};
+
+const rowLabel = (row) => `${isAct(row) ? 'Acta' : 'Abono'} ${padNumber(row.number)}`;
 
 const paymentLabel = (row) => {
-  if (isAct(row)) return row.paidByNumber ? `Pagada con el abono ${row.paidByNumber}` : `Por pagar ${money(row.owed)}`;
-  return row.paidNumber ? `Paga el acta ${row.paidNumber}` : 'Entrega al fondo';
+  if (isAct(row)) return row.paidByNumber ? `Pagada con el abono ${padNumber(row.paidByNumber)}` : `Por pagar ${money(row.owed)}`;
+  return row.paidNumber ? `Paga el acta ${padNumber(row.paidNumber)}` : 'Entrega al fondo';
 };
 
 const glossItems = (row) => row.glosses?.items ?? [];
@@ -76,12 +82,22 @@ const HEADERS = [
   { label: 'Valor' }
 ];
 
+// Los del cuadro de Intervé (y del Excel): actas pagadas (con abono) y actas amortizadas al fondo.
+const PAID = '#C4BD97';
+const AMORTIZED = '#DDD9C3';
+const KHAKI_TEXT = '#121926';
+
 /** Colores del cuadro, con las claves del tema para que sirvan en claro y oscuro. */
 const useTones = () => {
   const theme = useTheme();
+  // Fondos claros en los dos temas. En claro, el texto normal de la tabla; en oscuro, el texto del
+  // tema es claro y no se lee: va oscuro fijo y en negrita.
+  // applyStyles y no palette.mode: con variables CSS, palette.mode no cambia con el tema.
+  const khaki = (bgcolor) => ({ bgcolor, ...theme.applyStyles('dark', { color: KHAKI_TEXT, fontWeight: 600 }) });
   return {
     payment: alpha(theme.palette.grey[500], 0.18),
-    paid: alpha(theme.palette.warning.dark, 0.28),
+    paid: khaki(PAID),
+    amortized: khaki(AMORTIZED),
     pending: alpha(theme.palette.warning.main, 0.08),
     month: alpha(theme.palette.primary.main, 0.06),
     light: alpha(theme.palette.primary.main, 0.12),
@@ -95,7 +111,8 @@ export function PaymentLegend() {
   return (
     <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
       <Chip size="small" label="Por aprobar: llena sus campos en la fila" sx={{ bgcolor: tones.pending }} />
-      <Chip size="small" label="Amortización pagada con abono" sx={{ bgcolor: tones.paid }} />
+      <Chip size="small" label="Actas pagadas" sx={tones.paid} />
+      <Chip size="small" label="Actas amortizadas al fondo" sx={tones.amortized} />
       <Chip size="small" label="Abono" sx={{ bgcolor: tones.payment }} />
       <Chip size="small" variant="outlined" label="A acta · E especial · F abono" />
     </Stack>
@@ -121,6 +138,9 @@ InvoicesButton.propTypes = { row: PropTypes.object.isRequired, onShowInvoices: P
 function MovementRow({ row, tones, monthCell, accumulatedCell, canManage, onEdit, onDelete, onShowInvoices }) {
   const glosses = glossItems(row);
   const act = isAct(row);
+  // Acta pagada con abono, o que solo amortiza el fondo; el abono no lleva color.
+  let amortizationTone;
+  if (act) amortizationTone = row.paidById ? tones.paid : tones.amortized;
   return (
     <TableRow sx={{ bgcolor: act ? undefined : tones.payment }}>
       {monthCell}
@@ -144,7 +164,7 @@ function MovementRow({ row, tones, monthCell, accumulatedCell, canManage, onEdit
         {money(row.actValue)}
       </TableCell>
       <Tooltip title={paymentLabel(row)}>
-        <TableCell align="right" sx={{ ...num, bgcolor: act && row.paidById ? tones.paid : undefined }}>
+        <TableCell align="right" sx={{ ...num, ...amortizationTone }}>
           {money(row.amortization)}
         </TableCell>
       </Tooltip>
@@ -167,7 +187,8 @@ function MovementRow({ row, tones, monthCell, accumulatedCell, canManage, onEdit
         ))}
       </TableCell>
       <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-        {act && <InvoicesButton row={row} onShowInvoices={onShowInvoices} />}
+        {/* La especial escrita a mano no tiene facturas. */}
+        {act && row.invoices?.length > 0 && <InvoicesButton row={row} onShowInvoices={onShowInvoices} />}
         {canManage && (
           <>
             <Tooltip title="Editar">
@@ -213,11 +234,18 @@ const missingOf = (form) => {
 function PendingRow({ extract, tones, monthCell, accumulatedCell, canManage, wrkId, wksId, onSaved, onShowInvoices }) {
   const [form, setForm] = useState({
     documentDate: dateOf(extract.lastDate),
-    approvalDate: '',
-    type: '',
+    // Si todas sus facturas ya están aprobadas, la fecha de la última aprobación (del servidor).
+    approvalDate: dateOf(extract.approvalDate),
+    // Lo normal es el acta A (amortiza completa); la E, solo si la fiducia pagó directo a los proveedores.
+    type: 'NORMAL',
     withholding: '',
     amortization: ''
   });
+  // Si sus facturas se aprueban mientras la fila está abierta, trae la fecha sin pisar lo escrito.
+  useEffect(() => {
+    if (extract.approvalDate)
+      setForm((current) => (current.approvalDate ? current : { ...current, approvalDate: dateOf(extract.approvalDate) }));
+  }, [extract.approvalDate]);
   // Una clave por fila: un doble clic o un reintento no crea dos actas (DEC-016).
   const [idempotencyKey] = useState(() => newIdempotencyKey());
   const [saving, setSaving] = useState(false);
@@ -271,7 +299,7 @@ function PendingRow({ extract, tones, monthCell, accumulatedCell, canManage, wrk
       {monthCell}
       <TableCell sx={{ whiteSpace: 'nowrap' }}>
         <Tooltip title={`Extracto ${extract.number} · ${extract.invoicesCount} factura(s), por aprobar como acta`}>
-          <span>Acta {extract.number}</span>
+          <span>Acta {padNumber(extract.number)}</span>
         </Tooltip>
       </TableCell>
       <TableCell>{dateInput('documentDate', 'Fecha acta')}</TableCell>
@@ -407,7 +435,8 @@ export default function FundTable({ report, canManage, onEdit, onDelete, onShowI
                 {h.label}
               </TableCell>
             ))}
-            <TableCell sx={{ width: 1 }} />
+            {/* La más angosta posible: solo sus botones (en MUI, width: 1 sería el 100 %). */}
+            <TableCell sx={{ width: '1%', whiteSpace: 'nowrap' }} />
           </TableRow>
         </TableHead>
         <TableBody>
@@ -488,7 +517,7 @@ export default function FundTable({ report, canManage, onEdit, onDelete, onShowI
             <TableCell align="right" sx={{ ...num, bgcolor: tones.light }}>
               {money(summary.extractsValue)}
             </TableCell>
-            <TableCell align="right" sx={{ ...num, bgcolor: tones.paid }}>
+            <TableCell align="right" sx={{ ...num, ...tones.amortized }}>
               {money(summary.amortized)}
             </TableCell>
             <TableCell align="right" sx={{ ...num, ...tones.balance }}>

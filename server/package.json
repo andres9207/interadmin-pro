@@ -12,6 +12,7 @@
     "db:seed": "prisma db seed",
     "db:seed:demo": "node prisma/seed.demo.js",
     "db:check-invariants": "node prisma/invariants.check.js",
+    "db:sync-statement-acts": "node prisma/statementActs.sync.js",
     "db:seed:volume": "node prisma/seed.volume.js",
     "db:measure-dashboard": "cross-env PRISMA_QUERY_EVENTS=1 node prisma/dashboard.measure.js",
     "cron:run": "node src/cron/run.js",

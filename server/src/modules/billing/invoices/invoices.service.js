@@ -16,6 +16,7 @@ import { assertReleaser, findLockedOpenGloss, writeGlossRelease } from "./glossR
 import { statementAmounts } from "./statementAmounts.js";
 import { CONCEPT_SELECT, assertContractInScope, findLockedContract, getContractFormOptions } from "../../work/contracts/contracts.service.js";
 import { evaluateLiquidation, notifyLiquidated } from "../../work/contracts/contractLiquidation.service.js";
+import { invoiceStatementTarget, syncStatementActs } from "../statementManagement/statementActs.service.js";
 import { providerSelectOptions } from "../../work/providers/providers.service.js";
 import {
   CONCEPT_TYPES,
@@ -2114,7 +2115,13 @@ export const saveInvoice = async ({ invId, input, useBy, granted, scope, ctx = {
   pastDate(input.date, "fecha de la factura");
   if (!document.inv_number) throw httpError(400, "El número de la factura es requerido.");
 
-  if (Number(invId) > 0) return updateInvoice({ invId: Number(invId), input, document, granted, useBy: Number(useBy), ctx });
+  if (Number(invId) > 0) {
+    // Cambiar el extracto o la etapa puede dejar aprobado el extracto de antes o el nuevo (DEC-103, acta automática).
+    const statementBefore = await invoiceStatementTarget(invId);
+    const result = await updateInvoice({ invId: Number(invId), input, document, granted, useBy: Number(useBy), ctx });
+    await syncStatementActs([statementBefore, await invoiceStatementTarget(invId)], { useBy, ctx });
+    return result;
+  }
 
   if (!TYPE_NAMES[input.type]) throw httpError(400, "El tipo de factura no es válido.");
   // Glosas que libera al registrarse (DEC-085): solo al crear.
@@ -2259,6 +2266,8 @@ export const approveInvoice = async ({ invId, input, useBy, scope, ctx = { useId
         });
         return { message, invId: before.inv_id, ...(await liquidateIfComplete(tx, before, useBy, ctx)) };
       });
+      // Aprobar la última factura del extracto, o anular la que faltaba, lo deja como acta A (DEC-103).
+      await syncStatementActs([await invoiceStatementTarget(invId)], { useBy, ctx });
       return notifyIfLiquidated(result, known, useBy);
     },
   });
@@ -2320,6 +2329,8 @@ export const cancelInvoice = async ({ invId, input, useBy, granted, scope, ctx =
         });
         return { message, invId: before.inv_id, ...(await liquidateIfComplete(tx, before, useBy, ctx)) };
       });
+      // Aprobar la última factura del extracto, o anular la que faltaba, lo deja como acta A (DEC-103).
+      await syncStatementActs([await invoiceStatementTarget(invId)], { useBy, ctx });
       return notifyIfLiquidated(result, known, useBy);
     },
   });
@@ -2372,5 +2383,7 @@ export const deleteInvoice = async ({ invId, input, useBy, granted, scope, ctx =
     });
     return { message: "Factura eliminada correctamente", invId: before.inv_id, ...(await liquidateIfComplete(tx, before, useBy, ctx)) };
   });
+  // Eliminar la que faltaba por aprobar deja el extracto como acta A (DEC-103).
+  await syncStatementActs([await invoiceStatementTarget(invId)], { useBy, ctx });
   return notifyIfLiquidated(result, known, useBy);
 };

@@ -10,7 +10,7 @@ import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
-import { IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconEdit, IconPlus } from '@tabler/icons-react';
 
 import MainCard from 'ui-component/cards/MainCard';
 import ConfirmDialog from 'ui-component/extended/ConfirmDialog';
@@ -21,13 +21,7 @@ import ActInvoicesDialog from './components/ActInvoicesDialog';
 import FundDialog from './components/FundDialog';
 import FundTable, { PaymentLegend } from './components/FundTable';
 import MovementDialog from './components/MovementDialog';
-import {
-  deleteFundAPI,
-  deleteFundMovementAPI,
-  exportScopeReportAPI,
-  getManagementAPI,
-  getScopeReportAPI
-} from 'api/requests/statementManagementApi';
+import { deleteFundMovementAPI, exportScopeReportAPI, getManagementAPI, getScopeReportAPI } from 'api/requests/statementManagementApi';
 import { useAuth } from 'contexts/AuthContext';
 import { useWorkScope } from 'contexts/WorkScopeContext';
 import { useSocket } from 'socket/SocketProvider';
@@ -46,10 +40,9 @@ import { STATEMENT_MANAGEMENT_PATH } from 'utils/constants';
  * el tope, los abonos y el saldo. Todas las cifras las calcula el servidor.
  */
 
-/** Texto de la confirmación de eliminar: el fondo, un abono o un acta. */
+/** Texto de la confirmación de eliminar: un abono o un acta. */
 const confirmMessage = (confirming) => {
   if (!confirming) return '';
-  if (confirming.kind === 'fund') return 'El fondo se elimina solo si no tiene abonos. Las actas no dependen del fondo.';
   if (confirming.item.type === 'PAYMENT') return `¿Eliminar el abono ${confirming.item.number}?`;
   return `¿Eliminar el acta ${confirming.item.number}? Vuelve al cuadro con sus campos vacíos; sus facturas no se tocan. Si un abono la paga, primero el abono.`;
 };
@@ -80,7 +73,7 @@ export default function StatementManagementPage() {
   const [fundDialog, setFundDialog] = useState(null); // { fund } (null para crear)
   const [movementDialog, setMovementDialog] = useState(null); // { mode, extract?, movement? }
   const [invoicesOf, setInvoicesOf] = useState(null);
-  const [confirming, setConfirming] = useState(null); // { kind: 'fund' | 'movement', item }
+  const [confirming, setConfirming] = useState(null); // { kind: 'movement', item }
 
   // Cambió algo en otra sesión.
   useEffect(() => {
@@ -131,9 +124,9 @@ export default function StatementManagementPage() {
   const acts = useMemo(() => (report ? report.movements.filter((m) => m.type !== 'PAYMENT') : []), [report]);
 
   const confirmDelete = async () => {
-    const { kind, item } = confirming;
+    const { item } = confirming;
     try {
-      const { data } = kind === 'fund' ? await deleteFundAPI(item.rfdId) : await deleteFundMovementAPI(item.fmvId);
+      const { data } = await deleteFundMovementAPI(item.fmvId);
       showSuccess(data.message);
       setConfirming(null);
       reload();
@@ -242,20 +235,11 @@ export default function StatementManagementPage() {
                     Crear fondo rotatorio
                   </Button>
                 )}
+                {/* El fondo no se elimina desde la vista: solo se cambia su tope. */}
                 {canManageFunds && fund && (
-                  <>
-                    <Button size="small" startIcon={<IconEdit size={16} />} onClick={() => setFundDialog({ fund })}>
-                      Cambiar tope
-                    </Button>
-                    <Button
-                      size="small"
-                      color="error"
-                      startIcon={<IconTrash size={16} />}
-                      onClick={() => setConfirming({ kind: 'fund', item: fund })}
-                    >
-                      Eliminar fondo
-                    </Button>
-                  </>
+                  <Button size="small" startIcon={<IconEdit size={16} />} onClick={() => setFundDialog({ fund })}>
+                    Cambiar tope
+                  </Button>
                 )}
                 {canExport && (
                   <ExportButton
@@ -263,7 +247,8 @@ export default function StatementManagementPage() {
                     fileName={['gerencia-extractos', work.code, current?.name].filter(Boolean).join('-')}
                   />
                 )}
-                {canManageMovements && fund && (
+                {/* Abono al fondo (exige el fondo) o acta especial escrita a mano (no lo exige). */}
+                {canManageMovements && (
                   <Button
                     size="small"
                     variant="contained"
@@ -271,7 +256,7 @@ export default function StatementManagementPage() {
                     startIcon={<IconPlus size={16} />}
                     onClick={() => setMovementDialog({ mode: 'payment' })}
                   >
-                    Nuevo abono
+                    Nuevo abono / especial
                   </Button>
                 )}
               </Stack>
@@ -317,6 +302,8 @@ export default function StatementManagementPage() {
         extract={movementDialog?.extract ?? null}
         movement={movementDialog?.movement ?? null}
         acts={acts}
+        nextPaymentNumber={report?.nextPaymentNumber}
+        hasFund={Boolean(report?.fund)}
         onClose={() => setMovementDialog(null)}
         onSaved={closeAndReload(setMovementDialog)}
       />
@@ -327,7 +314,7 @@ export default function StatementManagementPage() {
         open={Boolean(confirming)}
         onClose={() => setConfirming(null)}
         onConfirm={confirmDelete}
-        title={confirming?.kind === 'fund' ? 'Eliminar fondo rotatorio' : `Eliminar ${confirming?.item.typeName?.toLowerCase() ?? ''}`}
+        title={`Eliminar ${confirming?.item.typeName?.toLowerCase() ?? ''}`}
         message={confirmMessage(confirming)}
         confirmLabel="Eliminar"
         confirmColor="error"

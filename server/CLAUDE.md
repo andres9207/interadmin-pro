@@ -16,6 +16,7 @@ npm run lint        # eslint . (DEC-097; el CI lo exige)
 yarn db:seed        # prisma db seed (siembra/repara tbl_pages, tbl_permissions y los permisos del superadmin)
 yarn db:seed:demo   # datos de demostración para desarrollo (ver "Datos de demostración")
 yarn db:check-invariants  # intenta violar I6 a I15 contra la BD y exige que las rechace su restricción; todo se revierte (database/migrations/README.md)
+yarn db:sync-statement-acts  # una vez: registra como acta A cada extracto con todas sus facturas aprobadas (DEC-103); idempotente
 yarn db:seed:volume       # volumen de prueba del tablero; solo contra una BD *_volume (ver "Volumen del tablero")
 yarn db:measure-dashboard [archivo.json]  # mide los tableros: tiempos, consultas y planes de MySQL (solo lectura)
 ```

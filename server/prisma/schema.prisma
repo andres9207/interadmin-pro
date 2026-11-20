@@ -1610,7 +1610,7 @@ model tbl_rotating_funds {
   @@index([rfd_update_by], map: "tbl_rotating_funds_update_by")
 }
 
-/// Actas aprobadas y abonos de la obra o de una etapa (database/migrations/0131_create_rotating_funds.sql, DEC-103). El
+/// valor del acta sale de las facturas de su extracto; fmv_value lo guarda el abono y la especial escrita a mano (lo pagado por la fiducia). fmv_number_active y
 /// valor del acta sale de las facturas de su extracto; fmv_value solo lo guarda el abono. fmv_number_active y
 /// fmv_paid_active son columnas GENERADAS por MySQL (número único en el ámbito; un abono por acta): nunca se escriben.
 model tbl_fund_movements {

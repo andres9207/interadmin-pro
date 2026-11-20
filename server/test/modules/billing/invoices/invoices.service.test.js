@@ -129,6 +129,15 @@ const evaluateLiquidation = jest.fn(async () => null);
 const notifyLiquidated = jest.fn(async () => 0);
 jest.unstable_mockModule("../../../../src/modules/work/contracts/contractLiquidation.service.js", () => ({ evaluateLiquidation, notifyLiquidated }));
 
+// El acta automática (DEC-103) se prueba en statementActs.service.test.js; aquí, que se invoca después de operar.
+const STATEMENT_TARGET = { wrkId: 1, wksId: 4, statement: "25" };
+const invoiceStatementTarget = jest.fn(async () => STATEMENT_TARGET);
+const syncStatementActs = jest.fn(async () => undefined);
+jest.unstable_mockModule("../../../../src/modules/billing/statementManagement/statementActs.service.js", () => ({
+  invoiceStatementTarget,
+  syncStatementActs,
+}));
+
 const service = await import("../../../../src/modules/billing/invoices/invoices.service.js");
 
 const KEY = "3f2b8c1e-5d4a-4e6b-9a7c-1b2d3e4f5a6b";
@@ -571,6 +580,12 @@ describe("aprobar", () => {
     });
     const fields = auditRows().map((r) => r.aud_field);
     expect(fields.filter((f) => !f.startsWith("snapshot."))).toEqual(["inv_state", "inv_approval_date", "advance_invoiced"]);
+  });
+
+  it("después de aprobar, revisa si su extracto quedó aprobado para registrarlo como acta A (DEC-103)", async () => {
+    await approve();
+    expect(invoiceStatementTarget).toHaveBeenCalledWith(70);
+    expect(syncStatementActs).toHaveBeenCalledWith([STATEMENT_TARGET], { useBy: 9, ctx });
   });
 
   describe("instantánea de composición y saldos (PRO-BE-39)", () => {

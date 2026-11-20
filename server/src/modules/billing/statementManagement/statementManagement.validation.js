@@ -47,7 +47,9 @@ export const saveFundMovementSchema = [
   stageBody,
   // El tipo no cambia al editar: el service usa el guardado.
   body("type").isIn(Object.values(FUND_MOVEMENT_TYPES)).withMessage("El tipo debe ser acta, acta especial o abono."),
+  // El número del abono lo asigna el servidor; al editar, ninguno cambia.
   body("number")
+    .if((value, { req }) => isCreateMovement(req) && req.body.type !== FUND_MOVEMENT_TYPES.PAYMENT)
     .trim()
     .notEmpty()
     .withMessage("El número es requerido.")
@@ -57,8 +59,13 @@ export const saveFundMovementSchema = [
   dateRule("approvalDate", "fecha de aprobación"),
   // El valor del acta sale de sus facturas; solo el abono lo escribe.
   moneyRule("value", "valor del abono", { when: isType(FUND_MOVEMENT_TYPES.PAYMENT) }),
+  // La especial escrita a mano lleva lo pagado por la fiducia; la de un extracto, no (sale de sus facturas).
+  moneyRule("value", "pagado por la fiducia", { optional: true, when: isType(FUND_MOVEMENT_TYPES.SPECIAL) }),
   moneyRule("withholding", "retención de pagos especiales", { when: isType(FUND_MOVEMENT_TYPES.SPECIAL) }),
-  moneyRule("amortization", "amortización al fondo", { when: isType(FUND_MOVEMENT_TYPES.SPECIAL) }),
+  // En la escrita a mano (con lo pagado por la fiducia) la amortización es la retención: no se pide.
+  moneyRule("amortization", "amortización al fondo", {
+    when: (req) => req.body.type === FUND_MOVEMENT_TYPES.SPECIAL && !String(req.body.value ?? "").trim(),
+  }),
   body("paidId").optional({ values: "falsy" }).isInt({ min: 1 }).withMessage("paidId debe ser un entero positivo."),
   optionalText("description", 500),
 ];
