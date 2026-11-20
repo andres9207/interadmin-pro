@@ -942,9 +942,9 @@
     "semantic_hash": ""
   },
   "server/package.json": {
-    "mtime": 1793296339.204948,
-    "seen": 1793296426.1377943,
-    "ast_hash": "519bcf049c3d6ed838c8f42cc1ae0081",
+    "mtime": 1795192307.3899384,
+    "seen": 1795206820.8346715,
+    "ast_hash": "329ec40a0fa517b1359f8ba7c058e035",
     "semantic_hash": ""
   },
   "server/prisma.config.js": {
@@ -2772,9 +2772,9 @@
     "semantic_hash": ""
   },
   "server/src/modules/billing/invoices/invoices.service.js": {
-    "mtime": 1795038825.069004,
-    "seen": 1795043766.5895247,
-    "ast_hash": "9c509e0d205c019a449e3955ef0306e4",
+    "mtime": 1795192265.4998834,
+    "seen": 1795206820.834806,
+    "ast_hash": "2a5a415d8ad671502a86e73f10a27c9f",
     "semantic_hash": ""
   },
   "server/src/modules/billing/invoices/invoices.validation.js": {
@@ -2796,9 +2796,9 @@
     "semantic_hash": ""
   },
   "server/test/modules/billing/invoices/invoices.service.test.js": {
-    "mtime": 1794929135.6217868,
-    "seen": 1794933066.5705373,
-    "ast_hash": "7a32f532f882e7a3e4d822b2d3f7d86e",
+    "mtime": 1795192364.6923358,
+    "seen": 1795206820.83493,
+    "ast_hash": "396d11fa210a326ff831a987e760c532",
     "semantic_hash": ""
   },
   "client/src/views/billing/invoices/components/InvoicesTab.jsx": {
@@ -3540,9 +3540,9 @@
     "semantic_hash": ""
   },
   "server/src/common/services/export.service.js": {
-    "mtime": 1794929085.612527,
-    "seen": 1794933066.5702994,
-    "ast_hash": "851e0e20da63db4a429b2454c71f352f",
+    "mtime": 1795201850.21513,
+    "seen": 1795206820.8347049,
+    "ast_hash": "443ce380570068fc007c93d3b9a43909",
     "semantic_hash": ""
   },
   "server/test/common/services/export.service.test.js": {
@@ -4260,9 +4260,9 @@
     "semantic_hash": ""
   },
   "client/src/views/billing/statementManagement/StatementManagementPage.jsx": {
-    "mtime": 1795107500.1065986,
-    "seen": 1795125147.6779954,
-    "ast_hash": "f6f38aa7d13804461aea225da81bdb4e",
+    "mtime": 1795202481.036906,
+    "seen": 1795206820.8344479,
+    "ast_hash": "e7244e090242f9d7ea50fc979c47b0bf",
     "semantic_hash": ""
   },
   "client/src/views/billing/statementManagement/components/ActInvoicesDialog.jsx": {
@@ -4278,21 +4278,21 @@
     "semantic_hash": ""
   },
   "client/src/views/billing/statementManagement/components/FundTable.jsx": {
-    "mtime": 1795042137.7219286,
-    "seen": 1795043766.5891278,
-    "ast_hash": "c86886e52557991cf5f87d8e3166e868",
+    "mtime": 1795200625.9121363,
+    "seen": 1795206820.8344514,
+    "ast_hash": "efab6bb7a0bca166aaca147815a065b7",
     "semantic_hash": ""
   },
   "client/src/views/billing/statementManagement/components/MovementDialog.jsx": {
-    "mtime": 1795039373.072132,
-    "seen": 1795043766.5891287,
-    "ast_hash": "19bfc3d3abe890be9a1121cd60db7131",
+    "mtime": 1795201536.3165033,
+    "seen": 1795206820.8344524,
+    "ast_hash": "4e9ac371b546cb723db696f1f745e026",
     "semantic_hash": ""
   },
   "database/migrations/0131_create_rotating_funds.sql": {
-    "mtime": 1795038864.3508866,
-    "seen": 1795043766.589381,
-    "ast_hash": "1f018c8d3868eb959cb6d141a676c1df",
+    "mtime": 1795200502.9326656,
+    "seen": 1795206820.834664,
+    "ast_hash": "515ace0fecf0b931143261edef42d28e",
     "semantic_hash": ""
   },
   "database/migrations/0132_seed_statement_management_pages_permissions.sql": {
@@ -4320,15 +4320,15 @@
     "semantic_hash": ""
   },
   "server/src/modules/billing/statementManagement/statementManagement.service.js": {
-    "mtime": 1795042034.639004,
-    "seen": 1795043766.589532,
-    "ast_hash": "584334794b3d67c57760f2d6bca3f149",
+    "mtime": 1795201335.6241553,
+    "seen": 1795206820.8348162,
+    "ast_hash": "f59bf65ac08817c274287127d2496846",
     "semantic_hash": ""
   },
   "server/src/modules/billing/statementManagement/statementManagement.validation.js": {
-    "mtime": 1795042034.668532,
-    "seen": 1795043766.5895326,
-    "ast_hash": "51b3761d9686641840f7a2038f3eff47",
+    "mtime": 1795201320.4619305,
+    "seen": 1795206820.8348172,
+    "ast_hash": "0289eb19aef6adb4aeade1aadc309286",
     "semantic_hash": ""
   },
   "server/test/modules/billing/statementManagement/fundFigures.test.js": {
@@ -4338,9 +4338,33 @@
     "semantic_hash": ""
   },
   "server/test/modules/billing/statementManagement/statementManagement.service.test.js": {
-    "mtime": 1795042156.2484708,
-    "seen": 1795043766.5896525,
-    "ast_hash": "34f5500c8a07f1d3781af9c2f2a26cdd",
+    "mtime": 1795201332.9552145,
+    "seen": 1795206820.834936,
+    "ast_hash": "dcf199493d0bb454e752d595350f41d4",
+    "semantic_hash": ""
+  },
+  "server/prisma/statementActs.sync.js": {
+    "mtime": 1795192306.1942906,
+    "seen": 1795206820.8346791,
+    "ast_hash": "a3834565582f1978fd871f24d5733cf4",
+    "semantic_hash": ""
+  },
+  "server/src/modules/billing/statementManagement/fundReportSheet.js": {
+    "mtime": 1795200646.3517454,
+    "seen": 1795206820.8348122,
+    "ast_hash": "a57ce003763628f4b8be2d481114b54d",
+    "semantic_hash": ""
+  },
+  "server/src/modules/billing/statementManagement/statementActs.service.js": {
+    "mtime": 1795192309.612487,
+    "seen": 1795206820.8348129,
+    "ast_hash": "22bf1eb2d00a45d5d1e2e60adfa057c6",
+    "semantic_hash": ""
+  },
+  "server/test/modules/billing/statementManagement/statementActs.service.test.js": {
+    "mtime": 1795192398.588629,
+    "seen": 1795206820.8349347,
+    "ast_hash": "17a82493bd4c6a1f95e0a08a71679f17",
     "semantic_hash": ""
   }
 }
